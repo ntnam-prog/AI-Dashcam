@@ -22,13 +22,13 @@ const labels = {
 };
 
 const VEHICLES = new Set(['car','truck','bus','motorcycle']);
-const CFG_KEY = 'distanceadas_cfg_v11b6';
-const APP_VERSION = 'v1.2 beta.1';
+const CFG_KEY = 'distanceadas_cfg_v11b5';
+const APP_VERSION = 'v1.2 beta.3';
 const RED_DISTANCE_M = 100;
 const defaults = {
   cameraHeight:1.20, horizonPct:50.0, effectiveVFovDeg:42, calLocked:true, autoGeometry:true,
   calLines:{10:65.64,20:57.82,30:55.21,50:53.13,70:52.23,100:51.56},
-  laneCount:4, egoLane:2, autoLane:true, vanishXPct:50, laneCenterBottomPct:50, laneWidthBottomPct:22,
+  laneCount:4, egoLane:2, vanishXPct:50, laneCenterBottomPct:50, laneWidthBottomPct:22,
   scoreThreshold:0.34, smoothingAlpha:0.28, aiHz:12, showAll:true, gpsSpeedEnabled:true
 };
 
@@ -48,7 +48,6 @@ const lightCtx=lightCanvas.getContext('2d',{willReadFrequently:true});
 const geoCanvas=document.createElement('canvas'); geoCanvas.width=192; geoCanvas.height=108;
 const geoCtx=geoCanvas.getContext('2d',{willReadFrequently:true});
 let geoState={mode:'IDLE',confidence:0,lastRun:0,samples:[],lockedAt:0,lastGood:null};
-let laneState={mode:'SEARCH',confidence:0,lastRun:0,count:null,boundariesPct:null,egoLane:null,samples:[]};
 
 function median(a){const b=[...a].sort((x,y)=>x-y),n=b.length;return n?b[Math.floor(n/2)]:null;}
 function resetAutoGeometry(show=true){
@@ -114,7 +113,7 @@ function maybeAutoGeometry(now){
 }
 
 function loadCfg(){
-  try { const raw=localStorage.getItem(CFG_KEY)||localStorage.getItem('distanceadas_cfg_v11b5')||'{}'; return {...defaults,...JSON.parse(raw)}; }
+  try { return {...defaults,...JSON.parse(localStorage.getItem(CFG_KEY)||'{}')}; }
   catch { return {...defaults}; }
 }
 function saveCfg(){ localStorage.setItem(CFG_KEY,JSON.stringify(cfg)); }
@@ -132,10 +131,10 @@ function fitCalibration(lines){
 }
 function currentCalibration(){ return fitCalibration(cfg.calLines); }
 function tempCfg(){
-  return {...cfg,cameraHeight:Number(inputs.cameraHeight.value),horizonPct:Number(inputs.horizon.value),autoGeometry:$('autoGeometry')?.checked??cfg.autoGeometry,autoLane:$('autoLane')?.checked??cfg.autoLane,laneCount:Number(inputs.laneCount.value),egoLane:Number(inputs.egoLane.value),vanishXPct:Number(inputs.vanishX.value),laneCenterBottomPct:Number(inputs.laneCenter.value),laneWidthBottomPct:Number(inputs.laneWidth.value),scoreThreshold:Number(inputs.score.value),smoothingAlpha:Number(inputs.smooth.value),aiHz:Number(inputs.aiHz.value),showAll:inputs.showAll.checked,gpsSpeedEnabled:inputs.gpsSpeedEnabled?.checked??cfg.gpsSpeedEnabled};
+  return {...cfg,cameraHeight:Number(inputs.cameraHeight.value),horizonPct:Number(inputs.horizon.value),autoGeometry:$('autoGeometry')?.checked??cfg.autoGeometry,laneCount:Number(inputs.laneCount.value),egoLane:Number(inputs.egoLane.value),vanishXPct:Number(inputs.vanishX.value),laneCenterBottomPct:Number(inputs.laneCenter.value),laneWidthBottomPct:Number(inputs.laneWidth.value),scoreThreshold:Number(inputs.score.value),smoothingAlpha:Number(inputs.smooth.value),aiHz:Number(inputs.aiHz.value),showAll:inputs.showAll.checked,gpsSpeedEnabled:inputs.gpsSpeedEnabled?.checked??cfg.gpsSpeedEnabled};
 }
 function syncControls(){
-  inputs.cameraHeight.value=cfg.cameraHeight;inputs.cameraHeightRange.value=cfg.cameraHeight;inputs.horizon.value=cfg.horizonPct;if($('autoGeometry'))$('autoGeometry').checked=cfg.autoGeometry;if($('autoLane'))$('autoLane').checked=cfg.autoLane;
+  inputs.cameraHeight.value=cfg.cameraHeight;inputs.cameraHeightRange.value=cfg.cameraHeight;inputs.horizon.value=cfg.horizonPct;if($('autoGeometry'))$('autoGeometry').checked=cfg.autoGeometry;
   inputs.laneCount.value=cfg.laneCount; inputs.egoLane.max=cfg.laneCount; inputs.egoLane.value=Math.min(cfg.egoLane,cfg.laneCount);
   inputs.vanishX.value=cfg.vanishXPct; inputs.laneCenter.value=cfg.laneCenterBottomPct; inputs.laneWidth.value=cfg.laneWidthBottomPct;
   inputs.score.value=cfg.scoreThreshold; inputs.smooth.value=cfg.smoothingAlpha; inputs.aiHz.value=cfg.aiHz; inputs.showAll.checked=cfg.showAll;if(inputs.gpsSpeedEnabled)inputs.gpsSpeedEnabled.checked=cfg.gpsSpeedEnabled;updateLabels();
@@ -154,10 +153,10 @@ function openPanel(){syncControls();ui.panel.classList.remove('hidden');ui.panel
 function closePanel(){ui.panel.classList.add('hidden');ui.panel.setAttribute('aria-hidden','true');}
 ui.settings.addEventListener('click',openPanel);ui.close.addEventListener('click',closePanel);
 ui.reset.addEventListener('click',()=>{cfg={...defaults,calLines:{...defaults.calLines}};saveCfg();tracks=[];syncControls();updateQuality();});
-ui.save.addEventListener('click',()=>{const next=tempCfg();next.egoLane=Math.min(next.egoLane,next.laneCount);cfg=next;saveCfg();tracks=[];laneState={mode:'SEARCH',confidence:0,lastRun:0,count:null,boundariesPct:null,egoLane:null,samples:[]};closePanel();if(sourceMode==='camera'){if(cfg.gpsSpeedEnabled)startGPS();else stopGPS();}if(cfg.autoGeometry&&sourceMode==='camera')resetAutoGeometry(true);else updateQuality();});
+ui.save.addEventListener('click',()=>{const next=tempCfg();next.egoLane=Math.min(next.egoLane,next.laneCount);cfg=next;saveCfg();tracks=[];closePanel();if(sourceMode==='camera'){if(cfg.gpsSpeedEnabled)startGPS();else stopGPS();}if(cfg.autoGeometry&&sourceMode==='camera')resetAutoGeometry(true);else updateQuality();});
 
 let calibrationMode=false,dragDistance=null;
-function setCalibrationMode(on){calibrationMode=on;cfg.calLocked=!on;canvas.classList.toggle('cal-active',on);ui.cal.textContent=on?'CAL: ĐANG KÉO VẠCH':(cfg.autoGeometry?'AUTO LẠI':'CAL: TỰ ĐỘNG');ui.hint.textContent=on?'Chạm vạch gần nhất rồi kéo lên/xuống • thả tay để lưu':'AUTO LANE • khoảng cách gắn trực tiếp trên từng xe';saveCfg();render(lastPredictions);}
+function setCalibrationMode(on){calibrationMode=on;cfg.calLocked=!on;canvas.classList.toggle('cal-active',on);ui.cal.textContent=on?'CAL: ĐANG KÉO VẠCH':(cfg.autoGeometry?'AUTO LẠI':'CAL: TỰ ĐỘNG');ui.hint.textContent=on?'Chạm vạch gần nhất rồi kéo lên/xuống • thả tay để lưu':'Đường đỏ = 100 m. Xe phía trên hiển thị >100 m.';saveCfg();render(lastPredictions);}
 ui.cal.addEventListener('click',()=>{if(calibrationMode){setCalibrationMode(false);return;} resetAutoGeometry(true);});
 $('autoCalBtn')?.addEventListener('click',()=>{const h=Number(inputs.cameraHeight.value)||1.2,yh=Number(inputs.horizon.value)||50;cfg.cameraHeight=h;cfg.horizonPct=yh;cfg.calLines=autoCalLines(h,yh,cfg.effectiveVFovDeg||42);saveCfg();syncControls();updateQuality();render(lastPredictions);});
 $('touchCalBtn')?.addEventListener('click',()=>{closePanel();setCalibrationMode(true);});
@@ -198,68 +197,6 @@ function resizeCanvas(){
   if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;} ctx.setTransform(dpr,0,0,dpr,0,0);
 }
 window.addEventListener('resize',resizeCanvas); window.addEventListener('orientationchange',()=>setTimeout(resizeCanvas,250));
-
-function effectiveLaneInfo(){
-  if(cfg.autoLane && laneState.boundariesPct && laneState.count>=3){
-    return {count:laneState.count,egoLane:laneState.egoLane||Math.min(cfg.egoLane,laneState.count),boundariesPct:laneState.boundariesPct,auto:true};
-  }
-  const n=cfg.laneCount,e=Math.min(cfg.egoLane,n),center=cfg.laneCenterBottomPct,width=cfg.laneWidthBottomPct,b=[];
-  for(let j=0;j<=n;j++) b.push(center+(j-e+0.5)*width);
-  return {count:n,egoLane:e,boundariesPct:b,auto:false};
-}
-function laneLineScore(edge,w,h,vx,vy,bxPct){
-  return lineEdgeScore(edge,w,h,vx,vy,w*bxPct/100);
-}
-function analyzeAutoLanes(){
-  if(video.readyState<2||!video.videoWidth)return null;
-  const w=geoCanvas.width,h=geoCanvas.height;geoCtx.drawImage(video,0,0,w,h);
-  const img=geoCtx.getImageData(0,0,w,h).data,gray=new Float32Array(w*h),edge=new Float32Array(w*h);
-  for(let i=0,j=0;i<img.length;i+=4,j++)gray[j]=0.2126*img[i]+0.7152*img[i+1]+0.0722*img[i+2];
-  let eSum=0,eCnt=0;
-  for(let y=Math.floor(h*0.38);y<h-1;y++)for(let x=1;x<w-1;x++){
-    const gx=Math.abs(gray[y*w+x+1]-gray[y*w+x-1]),gy=Math.abs(gray[(y+1)*w+x]-gray[(y-1)*w+x]);
-    const e=Math.min(255,gx*1.22+gy*0.42);edge[y*w+x]=e;eSum+=e;eCnt++;
-  }
-  const base=eCnt?eSum/eCnt:1,vx=w*cfg.vanishXPct/100,vy=h*(currentCalibration()?.horizonPct/100||cfg.horizonPct/100);
-  const endpoint=[];for(let p=-8;p<=108;p+=2)endpoint.push({p,s:laneLineScore(edge,w,h,vx,vy,p)});
-  const scoreAt=p=>{let best=0;for(const q of endpoint)if(Math.abs(q.p-p)<=2)best=Math.max(best,q.s);return best;};
-  let best=null;
-  for(const n of [3,4]){
-    const sMin=n===3?22:16,sMax=n===3?36:29;
-    for(let sp=sMin;sp<=sMax;sp+=1){
-      for(let b0=-8;b0<=32;b0+=2){
-        const b=[];let sum=0,inside=0;
-        for(let j=0;j<=n;j++){const p=b0+j*sp;b.push(p);sum+=scoreAt(p);if(p>=0&&p<=100)inside++;}
-        const span=b[n]-b[0],center=(b[0]+b[n])/2;
-        const coveragePenalty=Math.abs(span-88)*0.10+Math.abs(center-50)*0.07+(n+1-inside)*1.5;
-        const norm=sum/(n+1)-coveragePenalty;
-        if(!best||norm>best.score)best={count:n,boundariesPct:b,score:norm,raw:sum/(n+1)};
-      }
-    }
-  }
-  if(!best)return null;
-  const conf=Math.max(0,Math.min(1,(best.raw-base*0.82)/Math.max(18,base*1.6)));
-  const centerX=50;let ego=1;
-  for(let i=0;i<best.count;i++)if(centerX>=best.boundariesPct[i]&&centerX<best.boundariesPct[i+1]){ego=i+1;break;}
-  return {...best,confidence:conf,egoLane:ego};
-}
-function maybeAutoLane(now){
-  if(!cfg.autoLane||calibrationMode||video.readyState<2)return;
-  const interval=laneState.mode==='LOCK'?900:450;if(now-laneState.lastRun<interval)return;laneState.lastRun=now;
-  try{
-    const g=analyzeAutoLanes();if(!g||g.confidence<0.12)return;
-    laneState.samples.push(g);if(laneState.samples.length>6)laneState.samples.shift();
-    const recent=laneState.samples.slice(-4),same=recent.filter(x=>x.count===g.count);
-    if(same.length<2)return;
-    const count=g.count,avg=[];for(let j=0;j<=count;j++)avg.push(median(same.map(x=>x.boundariesPct[j])));
-    const spread=Math.max(...same.map(x=>Math.abs(x.boundariesPct[0]-avg[0])+Math.abs(x.boundariesPct[count]-avg[count])));
-    laneState.confidence=same.reduce((a,x)=>a+x.confidence,0)/same.length;
-    if(same.length>=3&&spread<18){
-      laneState.mode='LOCK';laneState.count=count;laneState.boundariesPct=avg;laneState.egoLane=g.egoLane;
-    }else if(laneState.mode!=='LOCK')laneState.mode='SEARCH';
-  }catch(e){console.warn('auto lane',e);}
-}
-
 function coverTransform(){
   const cw=canvas.clientWidth,ch=canvas.clientHeight,vw=video.videoWidth||1,vh=video.videoHeight||1;
   const scale=Math.max(cw/vw,ch/vh),drawW=vw*scale,drawH=vh*scale;
@@ -271,7 +208,6 @@ function iou(a,b){
   const inter=Math.max(0,x2-x1)*Math.max(0,y2-y1),u=a.w*a.h+b.w*b.h-inter; return u>0?inter/u:0;
 }
 function redY(h){return h*Number(cfg.calLines[100])/100;}
-function distanceY(d,h){const cal=currentCalibration();if(!cal||!Number.isFinite(d)||d<=0)return h*.5;return h*Math.max(0,Math.min(1,cal.horizonPct/100+cal.kNorm/d));}
 function horizonY(h){const cal=currentCalibration();return h*(cal?cal.horizonPct/100:0.50);}
 function rawDistanceFromY(y,h){
   const cal=currentCalibration();if(!cal)return null;const yn=y/h,yh=cal.horizonPct/100,denom=yn-yh;if(denom<=0.0005)return null;
@@ -286,18 +222,19 @@ function distanceState(y,h){
 }
 
 function laneGeomAtY(y,w,h){
-  const yh=horizonY(h),tt=Math.max(0,Math.min(1,(y-yh)/Math.max(1,h-yh))),p=Math.pow(tt,0.92),info=effectiveLaneInfo();
-  let vanish=w*cfg.vanishXPct/100,bottomXs=info.boundariesPct.map(bp=>w*bp/100);
-  if(info.auto&&video.videoWidth){const t=coverTransform();vanish=t.offsetX+(t.vw*cfg.vanishXPct/100)*t.scale;bottomXs=info.boundariesPct.map(bp=>t.offsetX+(t.vw*bp/100)*t.scale);}
-  const boundaries=bottomXs.map(xb=>vanish+(xb-vanish)*p),widths=[];for(let i=0;i<info.count;i++)widths.push(boundaries[i+1]-boundaries[i]);
-  return {boundaries,laneWidth:median(widths)||0,count:info.count,egoLane:info.egoLane,auto:info.auto};
+  const yh=horizonY(h),tt=Math.max(0,Math.min(1,(y-yh)/Math.max(1,h-yh))),p=Math.pow(tt,0.92);
+  const vanish=w*cfg.vanishXPct/100,egoBottom=w*cfg.laneCenterBottomPct/100;
+  const egoCenter=vanish+(egoBottom-vanish)*p, laneWidth=w*cfg.laneWidthBottomPct/100*p;
+  const n=cfg.laneCount,e=cfg.egoLane; const boundaries=[];
+  for(let j=0;j<=n;j++) boundaries.push(egoCenter+(j-e+0.5)*laneWidth);
+  return {egoCenter,laneWidth,boundaries};
 }
 function laneForX(x,y,w,h){
-  const g=laneGeomAtY(y,w,h);if(g.laneWidth<3)return null;
-  for(let i=0;i<g.count;i++)if(x>=g.boundaries[i]&&x<g.boundaries[i+1])return i+1;
-  const margin=g.laneWidth*0.35;
+  const g=laneGeomAtY(y,w,h); if(g.laneWidth<3)return null;
+  for(let i=0;i<cfg.laneCount;i++) if(x>=g.boundaries[i]&&x<g.boundaries[i+1]) return i+1;
+  const margin=g.laneWidth*0.25;
   if(x>=g.boundaries[0]-margin&&x<g.boundaries[0])return 1;
-  if(x>g.boundaries[g.count]&&x<=g.boundaries[g.count]+margin)return g.count;
+  if(x>g.boundaries[cfg.laneCount]&&x<=g.boundaries[cfg.laneCount]+margin)return cfg.laneCount;
   return null;
 }
 
@@ -306,7 +243,7 @@ function candidatesFromPredictions(predictions,t){
   for(const p of predictions||[]){
     if(!VEHICLES.has(p.class)||p.score<threshold)continue;
     const b=imageToScreenBox(p.bbox,t); if(b.x+b.w<0||b.x>t.cw||b.y+b.h<0||b.y>t.ch||b.w<6||b.h<6)continue;
-    const cx=b.x+b.w/2,by=Math.min(t.ch,b.y+b.h),lane=laneForX(cx,by,t.cw,t.ch);
+    const cx=b.x+b.w/2,by=Math.min(t.ch,b.y+b.h),lane=laneForX(cx,by,t.cw,t.ch); if(!lane)continue;
     const ds=distanceState(by,t.ch); out.push({p,b,cx,by,lane,ds});
   }
   return out;
@@ -318,7 +255,7 @@ function updateTracks(cands,now,t){
     let best=-1,bestScore=-1;
     for(let i=0;i<cands.length;i++){
       if(used.has(i))continue;const c=cands[i],ov=iou(tr.box,c.b),mv=centerDist(tr,c,t);if(mv>0.24&&ov<0.01)continue;
-      const classBonus=tr.className===c.p.class?0.25:0,score=ov*3.4+Math.max(0,1-mv/0.24)*1.25+classBonus+(tr.lane&&c.lane&&tr.lane===c.lane?0.18:0);
+      const classBonus=tr.className===c.p.class?0.25:0,score=ov*3.4+Math.max(0,1-mv/0.24)*1.25+classBonus+(tr.lane===c.lane?0.18:0);
       if(score>bestScore){bestScore=score;best=i;}
     }
     if(best>=0&&bestScore>0.35){
@@ -340,109 +277,50 @@ function displayDistanceForTrack(tr,h){
   }
   return {...ds,main:ds.kind==='over'?'>100':'~100'};
 }
-function fixedMiddleLaneIndex(){
-  const n=Math.max(3,effectiveLaneInfo().count||cfg.laneCount||3);
-  return Math.ceil(n/2);
-}
-function fixedCenterLaneAtY(y,w,h){
-  // Beta.8: làn khóa luôn neo đúng tâm camera. AUTO LANE chỉ cung cấp độ rộng,
-  // tuyệt đối không được kéo hành lang đỏ sang trái/phải.
-  const g=laneGeomAtY(y,w,h);
-  let width=Number(g.laneWidth)||0;
-  const yh=horizonY(h),tt=Math.max(0,Math.min(1,(y-yh)/Math.max(1,h-yh))),p=Math.pow(tt,0.92);
-  const fallback=w*(cfg.laneWidthBottomPct/100)*p;
-  if(!Number.isFinite(width)||width<8)width=fallback;
-  // Chặn các nghiệm AUTO LANE bất thường để vùng khóa không phình/co lung tung.
-  const minW=Math.max(10,w*0.10*p), maxW=Math.max(minW+2,w*0.62*p);
-  width=Math.max(minW,Math.min(maxW,width));
-  const cx=w/2;
-  return {left:cx-width/2,right:cx+width/2,cx,width,lane:fixedMiddleLaneIndex()};
-}
-function trackInsideFixedCenterLane(tr,w,h){
-  if(!tr||tr.stale)return false;
-  const g=fixedCenterLaneAtY(Math.max(horizonY(h)+2,Math.min(h,tr.by)),w,h);
-  // Dùng tâm đáy bbox: xe chỉ thành LEAD khi tâm đuôi xe thực sự đi vào làn đỏ.
-  return tr.cx>=g.left && tr.cx<=g.right;
-}
 function chooseEgoLead(h){
-  const w=canvas.clientWidth;
-  const inside=tracks.filter(t=>trackInsideFixedCenterLane(t,w,h));
-  // Xe gần nhất trong hành lang giữa là LEAD. Nếu hai xe gần tương đương,
-  // ưu tiên xe có tâm gần trục camera hơn để tránh nhảy sang xe sát biên.
-  return inside.sort((a,b)=>{
-    const da=displayDistanceForTrack(a,h).numeric??999, db=displayDistanceForTrack(b,h).numeric??999;
-    if(Math.abs(da-db)>3)return da-db;
-    return Math.abs(a.cx-w/2)-Math.abs(b.cx-w/2);
-  })[0]||null;
+  return tracks.filter(t=>!t.stale&&t.lane===cfg.egoLane).sort((a,b)=>(displayDistanceForTrack(a,h).numeric??999)-(displayDistanceForTrack(b,h).numeric??999))[0]||null;
 }
 
 function updateReadout(lead,h){
   ui.readout.classList.remove('state-warning','state-danger','state-idle');
   const live=tracks.filter(t=>!t.stale);ui.trackCount.textContent=`${live.length} xe`;
-  if(!lead){ui.distance.textContent='--.-';ui.lead.textContent='CHƯA CÓ XE TRONG LÀN MÌNH';ui.laneMain.textContent=`L${effectiveLaneInfo().egoLane}`;ui.track.textContent='TRACK: --';ui.readout.classList.add('state-idle');return;}
-  const d=displayDistanceForTrack(lead,h);ui.distance.textContent=d.main;ui.lead.textContent=`XE DẪN • L${fixedMiddleLaneIndex()}`;ui.laneMain.textContent=`L${fixedMiddleLaneIndex()}`;ui.track.textContent=`TRACK: #${lead.id}`;
+  if(!lead){ui.distance.textContent='--.-';ui.lead.textContent='CHƯA CÓ XE TRONG LÀN MÌNH';ui.laneMain.textContent=`L${cfg.egoLane}`;ui.track.textContent='TRACK: --';ui.readout.classList.add('state-idle');return;}
+  const d=displayDistanceForTrack(lead,h);ui.distance.textContent=d.main;ui.lead.textContent=`XE DẪN • L${lead.lane}`;ui.laneMain.textContent=`L${lead.lane}`;ui.track.textContent=`TRACK: #${lead.id}`;
   if(d.kind==='number'&&d.numeric<15)ui.readout.classList.add('state-warning');
 }
-function updateQuality(){const cal=currentCalibration(),gs=cfg.autoGeometry?(geoState.mode==='LOCK'?`AUTO LOCK ${Math.round(geoState.confidence*100)}%`:'AUTO CAL'):'MANUAL',li=effectiveLaneInfo(),ls=cfg.autoLane?(laneState.mode==='LOCK'?`AUTO LANE ${li.count}L ${Math.round(laneState.confidence*100)}%`:'AUTO LANE…'):`${li.count} LÀN`;ui.quality.textContent=cal?`${gs} • ${ls} • ${cfg.cameraHeight.toFixed(2)}m • 100m`:'CAL: KHÔNG HỢP LỆ';}
+function updateQuality(){const cal=currentCalibration();const gs=cfg.autoGeometry?(geoState.mode==='LOCK'?`AUTO LOCK ${Math.round(geoState.confidence*100)}%`:'AUTO CAL'):'MANUAL';ui.quality.textContent=cal?`${gs} • H ${cal.horizonPct.toFixed(1)}% • ${cfg.cameraHeight.toFixed(2)}m • ĐỎ 100m • ${cfg.laneCount} LÀN`:'CAL: KHÔNG HỢP LỆ';}
 
 function drawGuides(){
-  if(!calibrationMode)return;
-  const w=canvas.clientWidth,h=canvas.clientHeight,yh=horizonY(h);ctx.save();
-  const bg=laneGeomAtY(h,w,h);ctx.strokeStyle='rgba(40,230,130,.72)';ctx.lineWidth=2;ctx.setLineDash([]);
-  for(let j=0;j<=bg.count;j++){ctx.beginPath();ctx.moveTo(w*cfg.vanishXPct/100,yh);ctx.lineTo(bg.boundaries[j],h);ctx.stroke();}
-  for(const d of [100,70,50,30,20,10]){const y=h*Number(cfg.calLines[d])/100,isRed=d===100,isDrag=dragDistance===d;ctx.strokeStyle=isRed?'rgba(255,55,55,.98)':(isDrag?'rgba(255,235,60,1)':'rgba(255,210,30,.72)');ctx.lineWidth=isRed?3:(isDrag?3:1.4);ctx.setLineDash(isRed?[14,8]:[7,7]);ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=ctx.strokeStyle;ctx.font=`${isRed?'800':'700'} 12px -apple-system,sans-serif`;ctx.fillText(`${d} m`,8,Math.max(16,y-5));ctx.beginPath();ctx.arc(w-18,y,7,0,Math.PI*2);ctx.fill();}
+  const w=canvas.clientWidth,h=canvas.clientHeight,ry=redY(h),yh=horizonY(h);ctx.save();
+  const bg=laneGeomAtY(h,w,h);ctx.strokeStyle='rgba(40,230,130,.70)';ctx.lineWidth=2;ctx.setLineDash([]);
+  for(let j=0;j<=cfg.laneCount;j++){ctx.beginPath();ctx.moveTo(w*cfg.vanishXPct/100,yh);ctx.lineTo(bg.boundaries[j],h);ctx.stroke();}
+  for(let i=1;i<=cfg.laneCount;i++){const x=(bg.boundaries[i-1]+bg.boundaries[i])/2;ctx.font='700 12px -apple-system,sans-serif';ctx.fillStyle=i===cfg.egoLane?'rgba(50,255,150,.95)':'rgba(255,255,255,.75)';ctx.fillText(`L${i}`,x-8,h-18);}
+  for(const d of [100,70,50,30,20,10]){const y=h*Number(cfg.calLines[d])/100,isRed=d===100,isDrag=calibrationMode&&dragDistance===d;ctx.strokeStyle=isRed?'rgba(255,55,55,.98)':(isDrag?'rgba(255,235,60,1)':'rgba(255,210,30,.72)');ctx.lineWidth=isRed?3:(isDrag?3:1.4);ctx.setLineDash(isRed?[14,8]:[7,7]);ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=ctx.strokeStyle;ctx.font=`${isRed?'800':'700'} 12px -apple-system,sans-serif`;ctx.fillText(`${d} m`,8,Math.max(16,y-5));if(calibrationMode){ctx.beginPath();ctx.arc(w-18,y,7,0,Math.PI*2);ctx.fill();}}
   ctx.restore();
 }
-
-function drawMiddleLaneLock(w,h){
-  if(calibrationMode)return;
-  // v1.2 beta.1: hành lang đỏ khóa CỨNG giữa camera nhưng chỉ hiển thị đến ~60 m.
-  // AUTO LANE chỉ được phép cung cấp độ rộng theo phối cảnh, không được kéo lệch tâm.
-  // Beta.2: lớp đỏ 60 m là lớp HIỂN THỊ cố định ở phần đường gần.
-  // Không cho đỉnh lớp đỏ chạy ngược lên sát đường chân trời khi AUTO CAL/FOV chưa ổn định.
-  const y60=distanceY(60,h);
-  const visualTop=h*0.60; // giới hạn hiển thị: bắt đầu từ khoảng 60% chiều cao màn hình
-  const yTop=Math.max(visualTop, horizonY(h)+24, y60);
-  const yBottom=h*.92;
-  const gt=fixedCenterLaneAtY(yTop,w,h), gb=fixedCenterLaneAtY(yBottom,w,h);
+function drawTrack(tr,h,w){
+  const d=displayDistanceForTrack(tr,h),isLead=tr.lane===cfg.egoLane&&!tr.stale;
+  const isL2=tr.lane===2;
+  const strokeColor=isL2?'#ff3b30':'rgba(80,230,150,.95)';
+  const textColor=isL2?'#ff3b30':'#ffffff';
   ctx.save();
-  ctx.beginPath();ctx.moveTo(gt.left,yTop);ctx.lineTo(gt.right,yTop);ctx.lineTo(gb.right,yBottom);ctx.lineTo(gb.left,yBottom);ctx.closePath();
-  ctx.fillStyle='rgba(255,35,35,.15)';ctx.fill();
-  ctx.strokeStyle='rgba(255,255,255,.88)';ctx.lineWidth=1.5;ctx.setLineDash([8,7]);
-  ctx.beginPath();ctx.moveTo(gt.left,yTop);ctx.lineTo(gb.left,yBottom);ctx.moveTo(gt.right,yTop);ctx.lineTo(gb.right,yBottom);ctx.stroke();ctx.setLineDash([]);
-  const cx=w/2, cy=Math.min(h-112,yBottom-20);
-  ctx.strokeStyle='#ff2e2e';ctx.fillStyle='rgba(10,10,12,.82)';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(cx,cy,18,0,Math.PI*2);ctx.fill();ctx.stroke();
-  ctx.beginPath();ctx.moveTo(cx-13,cy);ctx.lineTo(cx+13,cy);ctx.moveTo(cx,cy-13);ctx.lineTo(cx,cy+13);ctx.stroke();
-  const text='🔒 KHÓA LÀN GIỮA';ctx.font='800 11px -apple-system,sans-serif';const tw=ctx.measureText(text).width;ctx.fillStyle='rgba(10,10,12,.82)';ctx.fillRect(cx-tw/2-7,cy+24,tw+14,22);ctx.fillStyle='#ff3a3a';ctx.fillText(text,cx-tw/2,cy+40);ctx.restore();
-}
-
-function rectOverlap(a,b,pad=4){return !(a.x+a.w+pad<b.x||b.x+b.w+pad<a.x||a.y+a.h+pad<b.y||b.y+b.h+pad<a.y);}
-function labelPlacement(tr,tw,w,h,occupied){
-  const bh=24, rw=tw+10, clampX=x=>Math.max(5,Math.min(x,w-rw-5));
-  const xs=[tr.cx-rw/2,tr.box.x-rw-10,tr.box.x+tr.box.w+10,tr.cx-rw/2-34,tr.cx-rw/2+34];
-  const ys=[tr.box.y-bh-10,tr.box.y-bh-39,tr.box.y+tr.box.h+8,tr.box.y+4,tr.box.y-bh-68];
-  for(const y0 of ys){for(const x0 of xs){const q={x:clampX(x0),y:Math.max(96,Math.min(y0,h-bh-118)),w:rw,h:bh};if(!occupied.some(o=>rectOverlap(q,o,7)))return q;}}
-  // Cuối cùng quét theo hàng, vẫn giữ vùng trung tâm dưới thoáng cho khóa làn/nút điều khiển.
-  for(let y=100;y<h-bh-118;y+=bh+7){for(let x=6;x<w-rw-6;x+=Math.max(40,rw*.65)){const q={x,y,w:rw,h:bh};if(!occupied.some(o=>rectOverlap(q,o,7)))return q;}}
-  return {x:clampX(tr.cx-rw/2),y:Math.max(100,Math.min(tr.box.y-bh-10,h-bh-118)),w:rw,h:bh};
-}
-function laneColor(tr,isLead){if(isLead||tr.lane===fixedMiddleLaneIndex())return '#ff2d2d'; if(tr.lane<fixedMiddleLaneIndex())return '#18d86d'; if(tr.lane>fixedMiddleLaneIndex())return '#258cff'; return '#f2f2f2';}
-function drawTrack(tr,h,w,occupied,isLead){
-  const d=displayDistanceForTrack(tr,h), color=laneColor(tr,isLead);
-  ctx.save();ctx.lineWidth=isLead?3:2;ctx.strokeStyle=tr.stale?'rgba(180,180,180,.45)':color;ctx.strokeRect(tr.box.x,tr.box.y,tr.box.w,tr.box.h);
-  const laneText=isLead?`L${fixedMiddleLaneIndex()}`:(tr.lane?`L${tr.lane}`:'L?');const label=`${isLead?'LEAD • ':''}${laneText} • ${d.text}`;ctx.font=`${isLead?'800 15px':'750 12px'} -apple-system,sans-serif`;const tw=ctx.measureText(label).width;
-  const r=labelPlacement(tr,tw,w,h,occupied);occupied.push(r);
-  const anchorX=Math.max(r.x+8,Math.min(tr.cx,r.x+r.w-8)), anchorY=r.y>tr.by?r.y:r.y+r.h;
-  ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(tr.cx,Math.max(tr.box.y,tr.by-tr.box.h*.15));ctx.lineTo(anchorX,anchorY);ctx.stroke();
-  ctx.fillStyle='rgba(8,10,13,.88)';ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle=color;ctx.lineWidth=1;ctx.strokeRect(r.x,r.y,r.w,r.h);
-  ctx.fillStyle=color;ctx.fillText(label,r.x+5,r.y+(isLead?17:16));ctx.restore();
+  ctx.strokeStyle=strokeColor;
+  ctx.lineWidth=isLead?3:2;
+  ctx.strokeRect(tr.box.x,tr.box.y,tr.box.w,tr.box.h);
+  const label=`${isLead?'LEAD • ':''}L${tr.lane} • ${d.text}`;
+  ctx.font=`${isLead?'800 15px':'700 12px'} -apple-system,sans-serif`;
+  const tw=ctx.measureText(label).width;
+  const tx=Math.max(4,Math.min(tr.box.x,w-tw-12)),ty=Math.max(24,tr.box.y-6);
+  ctx.fillStyle='rgba(0,0,0,.78)';
+  ctx.fillRect(tx-4,ty-18,tw+8,22);
+  ctx.fillStyle=textColor;
+  ctx.fillText(label,tx,ty-2);
+  ctx.restore();
 }
 function render(predictions){
-  resizeCanvas();const w=canvas.clientWidth,h=canvas.clientHeight;ctx.clearRect(0,0,w,h);drawGuides();drawMiddleLaneLock(w,h);const t=coverTransform();
+  resizeCanvas();const w=canvas.clientWidth,h=canvas.clientHeight;ctx.clearRect(0,0,w,h);drawGuides();const t=coverTransform();
   const cands=candidatesFromPredictions(predictions,t);updateTracks(cands,performance.now(),t);const lead=chooseEgoLead(h);updateReadout(lead,h);updateMotionReadout(lead,h);
-  const visible=cfg.showAll?tracks.filter(tr=>!tr.stale||performance.now()-tr.lastSeen<500):(lead?[lead]:[]);
-  visible.sort((a,b)=>(a===lead?-1:b===lead?1:((b.box.w*b.box.h)-(a.box.w*a.box.h))));
-  const occupied=[];for(const tr of visible)drawTrack(tr,h,w,occupied,tr===lead);
+  if(cfg.showAll)for(const tr of tracks)drawTrack(tr,h,w);else if(lead)drawTrack(lead,h,w);
 }
 
 const AI_FILES={
@@ -466,8 +344,8 @@ async function startCamera(){
   if(!navigator.mediaDevices?.getUserMedia){alert('Camera web cần HTTPS hoặc localhost.');return;}stopCamera(false);ui.status.textContent='Đang mở camera…';
   try{stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:30,max:30}}});video.srcObject=stream;await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Camera không trả metadata')),10000);if(video.readyState>=1){clearTimeout(timer);resolve();return;}video.onloadedmetadata=()=>{clearTimeout(timer);resolve();};});await video.play();resizeCanvas();}
   catch(err){console.error(err);ui.status.textContent='Lỗi camera';alert(`Không mở được camera: ${err.message||err}`);return;}
-  sourceMode='camera';running=true;laneState={mode:'SEARCH',confidence:0,lastRun:0,count:null,boundariesPct:null,egoLane:null,samples:[]};startGPS();ui.start.textContent='DỪNG';ui.videoBtn.textContent='VIDEO THỬ';lastAIEnd=0;if(cfg.autoGeometry)resetAutoGeometry(true);
-  try{await initModel();ui.status.textContent='Đang nhận xe • AUTO LANE';if(!drawRAF)drawRAF=requestAnimationFrame(loop);}catch(err){console.error(err);ui.status.textContent='AI chưa sẵn sàng';ui.fps.textContent='AI ERROR';alert(`AI chưa nạp được.\n\n${err.message||err}`);}
+  sourceMode='camera';running=true;startGPS();ui.start.textContent='DỪNG';ui.videoBtn.textContent='VIDEO THỬ';lastAIEnd=0;if(cfg.autoGeometry)resetAutoGeometry(true);
+  try{await initModel();ui.status.textContent='Đang theo dõi 3–4 làn';if(!drawRAF)drawRAF=requestAnimationFrame(loop);}catch(err){console.error(err);ui.status.textContent='AI chưa sẵn sàng';ui.fps.textContent='AI ERROR';alert(`AI chưa nạp được.\n\n${err.message||err}`);}
 }
 function stopCamera(updateUI=true){
   running=false;aiBusy=false;if(drawRAF){cancelAnimationFrame(drawRAF);drawRAF=0;}
@@ -486,8 +364,8 @@ ui.videoFile.addEventListener('change',async()=>{
   try{
     videoObjectUrl=URL.createObjectURL(file);video.srcObject=null;video.src=videoObjectUrl;video.loop=true;video.muted=true;video.playsInline=true;
     await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Video không trả metadata')),10000);video.onloadedmetadata=()=>{clearTimeout(timer);resolve();};video.onerror=()=>{clearTimeout(timer);reject(new Error('Không đọc được video'));};});
-    await video.play();resizeCanvas();sourceMode='video';laneState={mode:'SEARCH',confidence:0,lastRun:0,count:null,boundariesPct:null,egoLane:null,samples:[]};stopGPS();running=true;ui.start.textContent='DỪNG';ui.videoBtn.textContent='DỪNG VIDEO';lastAIEnd=0;tracks=[];
-    await initModel();ui.status.textContent='VIDEO THỬ • AUTO LANE + khoảng cách từng xe';if(!drawRAF)drawRAF=requestAnimationFrame(loop);
+    await video.play();resizeCanvas();sourceMode='video';stopGPS();running=true;ui.start.textContent='DỪNG';ui.videoBtn.textContent='DỪNG VIDEO';lastAIEnd=0;tracks=[];
+    await initModel();ui.status.textContent='VIDEO THỬ • đang chạy cùng pipeline AI';if(!drawRAF)drawRAF=requestAnimationFrame(loop);
   }catch(err){console.error(err);ui.status.textContent='Lỗi video thử';alert(`Không mở được video thử: ${err.message||err}`);stopCamera(true);}
   finally{ui.videoFile.value='';}
 });
@@ -512,7 +390,7 @@ async function detectAdaptive(){
   const side=phase===2?'L':'R',r=buildFarROI(side),min=r.dark?0.14:0.17,preds=await model.detect(roiCanvas,14,min);detectMode=`ZOOM-${side}${r.dark?'+DARK':''}`;return mapPreds(preds,r);
 }
 async function loop(ts){
-  maybeAutoGeometry(ts);maybeAutoLane(ts);if(Math.round(ts)%900<20)updateQuality();
+  maybeAutoGeometry(ts);
   drawRAF=0;if(!running)return;const interval=1000/Math.max(1,cfg.aiHz);
   if(!aiBusy&&model&&video.readyState>=2&&ts-lastAIEnd>=interval){aiBusy=true;const started=performance.now();try{const preds=await detectAdaptive();lastPredictions=preds;render(preds);const elapsed=performance.now()-started,instant=1000/Math.max(elapsed,1);fpsSmooth=fpsSmooth?fpsSmooth*.78+instant*.22:instant;ui.fps.textContent=`AI ${fpsSmooth.toFixed(1)} FPS • ${detectMode}`;}catch(err){console.error(err);ui.status.textContent='AI lỗi 1 frame';}finally{lastAIEnd=performance.now();aiBusy=false;}}
   if(running)drawRAF=requestAnimationFrame(loop);
