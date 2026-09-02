@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="DistanceADAS">
-  <title>DistanceADAS Web v1.0 beta.1</title>
+  <title>DistanceADAS Web v1.0 beta.2</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="style.css">
@@ -20,7 +20,7 @@
     <div id="topbar">
       <div>
         <div id="status">Sẵn sàng</div>
-        <div id="substatus">v1.0 beta.1 • local-AI fallback • lead tracking • 2-point calibration</div>
+        <div id="substatus">v1.0 beta.2 • FAST LOCK • local AI • 2-point calibration</div>
       </div>
       <div class="rightStats">
         <div id="fps">AI -- FPS</div>
@@ -103,8 +103,8 @@
         <div class="sectionTitle">AI & THEO DÕI</div>
         <label>
           Ngưỡng nhận dạng AI
-          <input id="scoreRange" type="range" min="0.25" max="0.90" value="0.45" step="0.05">
-          <span id="scoreValue">0.45</span>
+          <input id="scoreRange" type="range" min="0.25" max="0.90" value="0.38" step="0.05">
+          <span id="scoreValue">0.38</span>
         </label>
         <label>
           Làm mượt khoảng cách
@@ -113,8 +113,8 @@
         </label>
         <label>
           Tần số AI mục tiêu
-          <input id="aiHzRange" type="range" min="4" max="12" value="9" step="1">
-          <span id="aiHzValue">9 Hz</span>
+          <input id="aiHzRange" type="range" min="4" max="12" value="12" step="1">
+          <span id="aiHzValue">12 Hz</span>
         </label>
         <label class="checkrow">
           <input id="centerOnly" type="checkbox" checked>

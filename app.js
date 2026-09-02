@@ -24,15 +24,20 @@ const labels = {
 
 const VEHICLES = new Set(['car','truck','bus','motorcycle']);
 const CFG_KEY = 'distanceadas_cfg_v10b';
+const APP_VERSION = 'v1.0 beta.2';
 const defaults = {
   nearPct: 82, nearM: 5,
   farPct: 58, farM: 20,
   vanishXPct: 50, laneCenterBottomPct: 50, laneWidthBottomPct: 62,
-  scoreThreshold: 0.45, smoothingAlpha: 0.30, aiHz: 9,
+  scoreThreshold: 0.38, smoothingAlpha: 0.30, aiHz: 12,
   centerOnly: true, showAll: true
 };
 
 let cfg = loadCfg();
+// Migrate beta.1 defaults to beta.2 fast-lock defaults without touching calibration.
+if (cfg.scoreThreshold === 0.45) cfg.scoreThreshold = 0.38;
+if (cfg.aiHz === 9) cfg.aiHz = 12;
+saveCfg();
 let stream = null, model = null, running = false, aiBusy = false, drawRAF = 0;
 let lastAIEnd = 0, fpsSmooth = 0, lastPredictions = [], leadTrack = null, nextTrackId = 1;
 
@@ -136,13 +141,18 @@ function laneBoundsAtY(y,w,h){ const c=laneCenterAtY(y,w,h),half=laneHalfWidthAt
 
 function makeCandidates(predictions,t){
   const out=[];
+  // Fast-lock: khi chưa có track, hạ ngưỡng tạm thời để bắt mục tiêu sớm hơn.
+  // Khi đã khóa xe, quay lại ngưỡng người dùng đặt để giảm nhảy nhầm.
+  const activeThreshold = leadTrack ? cfg.scoreThreshold : Math.max(0.25, cfg.scoreThreshold - 0.12);
   for(const p of predictions||[]){
-    if(!VEHICLES.has(p.class)||p.score<cfg.scoreThreshold) continue;
+    if(!VEHICLES.has(p.class)||p.score<activeThreshold) continue;
     const b=imageToScreenBox(p.bbox,t);
     if(b.x+b.w<0||b.x>t.cw||b.y+b.h<0||b.y>t.ch||b.w<8||b.h<8) continue;
     const cx=b.x+b.w/2, bottomY=Math.min(t.ch,b.y+b.h);
     const d=distanceFromScreenY(bottomY,t.ch); if(!d) continue;
-    const lane=laneBoundsAtY(bottomY,t.cw,t.ch), inLane=cx>=lane.left&&cx<=lane.right;
+    const lane=laneBoundsAtY(bottomY,t.cw,t.ch);
+    const acquireMargin = leadTrack ? 0 : Math.max(10, lane.half * 0.18);
+    const inLane = cx >= lane.left-acquireMargin && cx <= lane.right+acquireMargin;
     if(cfg.centerOnly&&!inLane) continue;
     const centerPenalty=Math.abs(cx-lane.center)/Math.max(1,lane.half);
     const proximity=1/Math.max(1,d), bottomNorm=Math.min(1,bottomY/t.ch), areaNorm=Math.min(1,(b.w*b.h)/(t.cw*t.ch)*8);
@@ -357,7 +367,17 @@ async function loop(ts){
   drawRAF=0;if(!running)return;const interval=1000/Math.max(1,cfg.aiHz);
   if(!aiBusy&&model&&video.readyState>=2&&ts-lastAIEnd>=interval){
     aiBusy=true;const started=performance.now();
-    try{const preds=await model.detect(video,18);lastPredictions=preds;drawPredictions(preds);const elapsed=performance.now()-started,instant=1000/Math.max(elapsed,1);fpsSmooth=fpsSmooth?fpsSmooth*.78+instant*.22:instant;ui.fps.textContent=`AI ${fpsSmooth.toFixed(1)} FPS`;}
+    try{
+      // COCO-SSD có ngưỡng nội bộ riêng. Bản beta.1 không truyền minScore nên
+      // model dùng mặc định ~0.50, khiến mục tiêu phải rất rõ mới xuất hiện.
+      // Fast-lock dùng 0.25 khi chưa có xe dẫn; sau khi khóa nâng ngưỡng để ổn định.
+      const detectMinScore = leadTrack ? Math.max(0.30, cfg.scoreThreshold - 0.05) : 0.25;
+      const preds=await model.detect(video,12,detectMinScore);
+      lastPredictions=preds;drawPredictions(preds);
+      const elapsed=performance.now()-started,instant=1000/Math.max(elapsed,1);
+      fpsSmooth=fpsSmooth?fpsSmooth*.78+instant*.22:instant;
+      ui.fps.textContent=`AI ${fpsSmooth.toFixed(1)} FPS`;
+    }
     catch(err){console.error(err);ui.status.textContent='AI lỗi 1 frame';}
     finally{lastAIEnd=performance.now();aiBusy=false;}
   }
