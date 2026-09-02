@@ -22,13 +22,13 @@ const labels = {
 };
 
 const VEHICLES = new Set(['car','truck','bus','motorcycle']);
-const CFG_KEY = 'distanceadas_cfg_v11b5';
-const APP_VERSION = 'v1.1 beta.5';
+const CFG_KEY = 'distanceadas_cfg_v11b6';
+const APP_VERSION = 'v1.1 beta.6';
 const RED_DISTANCE_M = 100;
 const defaults = {
   cameraHeight:1.20, horizonPct:50.0, effectiveVFovDeg:42, calLocked:true, autoGeometry:true,
   calLines:{10:65.64,20:57.82,30:55.21,50:53.13,70:52.23,100:51.56},
-  laneCount:4, egoLane:2, vanishXPct:50, laneCenterBottomPct:50, laneWidthBottomPct:22,
+  laneCount:4, egoLane:2, autoLane:true, vanishXPct:50, laneCenterBottomPct:50, laneWidthBottomPct:22,
   scoreThreshold:0.34, smoothingAlpha:0.28, aiHz:12, showAll:true, gpsSpeedEnabled:true
 };
 
@@ -48,6 +48,7 @@ const lightCtx=lightCanvas.getContext('2d',{willReadFrequently:true});
 const geoCanvas=document.createElement('canvas'); geoCanvas.width=192; geoCanvas.height=108;
 const geoCtx=geoCanvas.getContext('2d',{willReadFrequently:true});
 let geoState={mode:'IDLE',confidence:0,lastRun:0,samples:[],lockedAt:0,lastGood:null};
+let laneState={mode:'SEARCH',confidence:0,lastRun:0,count:null,boundariesPct:null,egoLane:null,samples:[]};
 
 function median(a){const b=[...a].sort((x,y)=>x-y),n=b.length;return n?b[Math.floor(n/2)]:null;}
 function resetAutoGeometry(show=true){
@@ -113,7 +114,7 @@ function maybeAutoGeometry(now){
 }
 
 function loadCfg(){
-  try { return {...defaults,...JSON.parse(localStorage.getItem(CFG_KEY)||'{}')}; }
+  try { const raw=localStorage.getItem(CFG_KEY)||localStorage.getItem('distanceadas_cfg_v11b5')||'{}'; return {...defaults,...JSON.parse(raw)}; }
   catch { return {...defaults}; }
 }
 function saveCfg(){ localStorage.setItem(CFG_KEY,JSON.stringify(cfg)); }
@@ -131,10 +132,10 @@ function fitCalibration(lines){
 }
 function currentCalibration(){ return fitCalibration(cfg.calLines); }
 function tempCfg(){
-  return {...cfg,cameraHeight:Number(inputs.cameraHeight.value),horizonPct:Number(inputs.horizon.value),autoGeometry:$('autoGeometry')?.checked??cfg.autoGeometry,laneCount:Number(inputs.laneCount.value),egoLane:Number(inputs.egoLane.value),vanishXPct:Number(inputs.vanishX.value),laneCenterBottomPct:Number(inputs.laneCenter.value),laneWidthBottomPct:Number(inputs.laneWidth.value),scoreThreshold:Number(inputs.score.value),smoothingAlpha:Number(inputs.smooth.value),aiHz:Number(inputs.aiHz.value),showAll:inputs.showAll.checked,gpsSpeedEnabled:inputs.gpsSpeedEnabled?.checked??cfg.gpsSpeedEnabled};
+  return {...cfg,cameraHeight:Number(inputs.cameraHeight.value),horizonPct:Number(inputs.horizon.value),autoGeometry:$('autoGeometry')?.checked??cfg.autoGeometry,autoLane:$('autoLane')?.checked??cfg.autoLane,laneCount:Number(inputs.laneCount.value),egoLane:Number(inputs.egoLane.value),vanishXPct:Number(inputs.vanishX.value),laneCenterBottomPct:Number(inputs.laneCenter.value),laneWidthBottomPct:Number(inputs.laneWidth.value),scoreThreshold:Number(inputs.score.value),smoothingAlpha:Number(inputs.smooth.value),aiHz:Number(inputs.aiHz.value),showAll:inputs.showAll.checked,gpsSpeedEnabled:inputs.gpsSpeedEnabled?.checked??cfg.gpsSpeedEnabled};
 }
 function syncControls(){
-  inputs.cameraHeight.value=cfg.cameraHeight;inputs.cameraHeightRange.value=cfg.cameraHeight;inputs.horizon.value=cfg.horizonPct;if($('autoGeometry'))$('autoGeometry').checked=cfg.autoGeometry;
+  inputs.cameraHeight.value=cfg.cameraHeight;inputs.cameraHeightRange.value=cfg.cameraHeight;inputs.horizon.value=cfg.horizonPct;if($('autoGeometry'))$('autoGeometry').checked=cfg.autoGeometry;if($('autoLane'))$('autoLane').checked=cfg.autoLane;
   inputs.laneCount.value=cfg.laneCount; inputs.egoLane.max=cfg.laneCount; inputs.egoLane.value=Math.min(cfg.egoLane,cfg.laneCount);
   inputs.vanishX.value=cfg.vanishXPct; inputs.laneCenter.value=cfg.laneCenterBottomPct; inputs.laneWidth.value=cfg.laneWidthBottomPct;
   inputs.score.value=cfg.scoreThreshold; inputs.smooth.value=cfg.smoothingAlpha; inputs.aiHz.value=cfg.aiHz; inputs.showAll.checked=cfg.showAll;if(inputs.gpsSpeedEnabled)inputs.gpsSpeedEnabled.checked=cfg.gpsSpeedEnabled;updateLabels();
@@ -153,10 +154,10 @@ function openPanel(){syncControls();ui.panel.classList.remove('hidden');ui.panel
 function closePanel(){ui.panel.classList.add('hidden');ui.panel.setAttribute('aria-hidden','true');}
 ui.settings.addEventListener('click',openPanel);ui.close.addEventListener('click',closePanel);
 ui.reset.addEventListener('click',()=>{cfg={...defaults,calLines:{...defaults.calLines}};saveCfg();tracks=[];syncControls();updateQuality();});
-ui.save.addEventListener('click',()=>{const next=tempCfg();next.egoLane=Math.min(next.egoLane,next.laneCount);cfg=next;saveCfg();tracks=[];closePanel();if(sourceMode==='camera'){if(cfg.gpsSpeedEnabled)startGPS();else stopGPS();}if(cfg.autoGeometry&&sourceMode==='camera')resetAutoGeometry(true);else updateQuality();});
+ui.save.addEventListener('click',()=>{const next=tempCfg();next.egoLane=Math.min(next.egoLane,next.laneCount);cfg=next;saveCfg();tracks=[];laneState={mode:'SEARCH',confidence:0,lastRun:0,count:null,boundariesPct:null,egoLane:null,samples:[]};closePanel();if(sourceMode==='camera'){if(cfg.gpsSpeedEnabled)startGPS();else stopGPS();}if(cfg.autoGeometry&&sourceMode==='camera')resetAutoGeometry(true);else updateQuality();});
 
 let calibrationMode=false,dragDistance=null;
-function setCalibrationMode(on){calibrationMode=on;cfg.calLocked=!on;canvas.classList.toggle('cal-active',on);ui.cal.textContent=on?'CAL: ĐANG KÉO VẠCH':(cfg.autoGeometry?'AUTO LẠI':'CAL: TỰ ĐỘNG');ui.hint.textContent=on?'Chạm vạch gần nhất rồi kéo lên/xuống • thả tay để lưu':'Đường đỏ = 100 m. Xe phía trên hiển thị >100 m.';saveCfg();render(lastPredictions);}
+function setCalibrationMode(on){calibrationMode=on;cfg.calLocked=!on;canvas.classList.toggle('cal-active',on);ui.cal.textContent=on?'CAL: ĐANG KÉO VẠCH':(cfg.autoGeometry?'AUTO LẠI':'CAL: TỰ ĐỘNG');ui.hint.textContent=on?'Chạm vạch gần nhất rồi kéo lên/xuống • thả tay để lưu':'AUTO LANE • khoảng cách gắn trực tiếp trên từng xe';saveCfg();render(lastPredictions);}
 ui.cal.addEventListener('click',()=>{if(calibrationMode){setCalibrationMode(false);return;} resetAutoGeometry(true);});
 $('autoCalBtn')?.addEventListener('click',()=>{const h=Number(inputs.cameraHeight.value)||1.2,yh=Number(inputs.horizon.value)||50;cfg.cameraHeight=h;cfg.horizonPct=yh;cfg.calLines=autoCalLines(h,yh,cfg.effectiveVFovDeg||42);saveCfg();syncControls();updateQuality();render(lastPredictions);});
 $('touchCalBtn')?.addEventListener('click',()=>{closePanel();setCalibrationMode(true);});
@@ -197,6 +198,68 @@ function resizeCanvas(){
   if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;} ctx.setTransform(dpr,0,0,dpr,0,0);
 }
 window.addEventListener('resize',resizeCanvas); window.addEventListener('orientationchange',()=>setTimeout(resizeCanvas,250));
+
+function effectiveLaneInfo(){
+  if(cfg.autoLane && laneState.boundariesPct && laneState.count>=3){
+    return {count:laneState.count,egoLane:laneState.egoLane||Math.min(cfg.egoLane,laneState.count),boundariesPct:laneState.boundariesPct,auto:true};
+  }
+  const n=cfg.laneCount,e=Math.min(cfg.egoLane,n),center=cfg.laneCenterBottomPct,width=cfg.laneWidthBottomPct,b=[];
+  for(let j=0;j<=n;j++) b.push(center+(j-e+0.5)*width);
+  return {count:n,egoLane:e,boundariesPct:b,auto:false};
+}
+function laneLineScore(edge,w,h,vx,vy,bxPct){
+  return lineEdgeScore(edge,w,h,vx,vy,w*bxPct/100);
+}
+function analyzeAutoLanes(){
+  if(video.readyState<2||!video.videoWidth)return null;
+  const w=geoCanvas.width,h=geoCanvas.height;geoCtx.drawImage(video,0,0,w,h);
+  const img=geoCtx.getImageData(0,0,w,h).data,gray=new Float32Array(w*h),edge=new Float32Array(w*h);
+  for(let i=0,j=0;i<img.length;i+=4,j++)gray[j]=0.2126*img[i]+0.7152*img[i+1]+0.0722*img[i+2];
+  let eSum=0,eCnt=0;
+  for(let y=Math.floor(h*0.38);y<h-1;y++)for(let x=1;x<w-1;x++){
+    const gx=Math.abs(gray[y*w+x+1]-gray[y*w+x-1]),gy=Math.abs(gray[(y+1)*w+x]-gray[(y-1)*w+x]);
+    const e=Math.min(255,gx*1.22+gy*0.42);edge[y*w+x]=e;eSum+=e;eCnt++;
+  }
+  const base=eCnt?eSum/eCnt:1,vx=w*cfg.vanishXPct/100,vy=h*(currentCalibration()?.horizonPct/100||cfg.horizonPct/100);
+  const endpoint=[];for(let p=-8;p<=108;p+=2)endpoint.push({p,s:laneLineScore(edge,w,h,vx,vy,p)});
+  const scoreAt=p=>{let best=0;for(const q of endpoint)if(Math.abs(q.p-p)<=2)best=Math.max(best,q.s);return best;};
+  let best=null;
+  for(const n of [3,4]){
+    const sMin=n===3?22:16,sMax=n===3?36:29;
+    for(let sp=sMin;sp<=sMax;sp+=1){
+      for(let b0=-8;b0<=32;b0+=2){
+        const b=[];let sum=0,inside=0;
+        for(let j=0;j<=n;j++){const p=b0+j*sp;b.push(p);sum+=scoreAt(p);if(p>=0&&p<=100)inside++;}
+        const span=b[n]-b[0],center=(b[0]+b[n])/2;
+        const coveragePenalty=Math.abs(span-88)*0.10+Math.abs(center-50)*0.07+(n+1-inside)*1.5;
+        const norm=sum/(n+1)-coveragePenalty;
+        if(!best||norm>best.score)best={count:n,boundariesPct:b,score:norm,raw:sum/(n+1)};
+      }
+    }
+  }
+  if(!best)return null;
+  const conf=Math.max(0,Math.min(1,(best.raw-base*0.82)/Math.max(18,base*1.6)));
+  const centerX=50;let ego=1;
+  for(let i=0;i<best.count;i++)if(centerX>=best.boundariesPct[i]&&centerX<best.boundariesPct[i+1]){ego=i+1;break;}
+  return {...best,confidence:conf,egoLane:ego};
+}
+function maybeAutoLane(now){
+  if(!cfg.autoLane||calibrationMode||video.readyState<2)return;
+  const interval=laneState.mode==='LOCK'?900:450;if(now-laneState.lastRun<interval)return;laneState.lastRun=now;
+  try{
+    const g=analyzeAutoLanes();if(!g||g.confidence<0.12)return;
+    laneState.samples.push(g);if(laneState.samples.length>6)laneState.samples.shift();
+    const recent=laneState.samples.slice(-4),same=recent.filter(x=>x.count===g.count);
+    if(same.length<2)return;
+    const count=g.count,avg=[];for(let j=0;j<=count;j++)avg.push(median(same.map(x=>x.boundariesPct[j])));
+    const spread=Math.max(...same.map(x=>Math.abs(x.boundariesPct[0]-avg[0])+Math.abs(x.boundariesPct[count]-avg[count])));
+    laneState.confidence=same.reduce((a,x)=>a+x.confidence,0)/same.length;
+    if(same.length>=3&&spread<18){
+      laneState.mode='LOCK';laneState.count=count;laneState.boundariesPct=avg;laneState.egoLane=g.egoLane;
+    }else if(laneState.mode!=='LOCK')laneState.mode='SEARCH';
+  }catch(e){console.warn('auto lane',e);}
+}
+
 function coverTransform(){
   const cw=canvas.clientWidth,ch=canvas.clientHeight,vw=video.videoWidth||1,vh=video.videoHeight||1;
   const scale=Math.max(cw/vw,ch/vh),drawW=vw*scale,drawH=vh*scale;
@@ -222,19 +285,18 @@ function distanceState(y,h){
 }
 
 function laneGeomAtY(y,w,h){
-  const yh=horizonY(h),tt=Math.max(0,Math.min(1,(y-yh)/Math.max(1,h-yh))),p=Math.pow(tt,0.92);
-  const vanish=w*cfg.vanishXPct/100,egoBottom=w*cfg.laneCenterBottomPct/100;
-  const egoCenter=vanish+(egoBottom-vanish)*p, laneWidth=w*cfg.laneWidthBottomPct/100*p;
-  const n=cfg.laneCount,e=cfg.egoLane; const boundaries=[];
-  for(let j=0;j<=n;j++) boundaries.push(egoCenter+(j-e+0.5)*laneWidth);
-  return {egoCenter,laneWidth,boundaries};
+  const yh=horizonY(h),tt=Math.max(0,Math.min(1,(y-yh)/Math.max(1,h-yh))),p=Math.pow(tt,0.92),info=effectiveLaneInfo();
+  let vanish=w*cfg.vanishXPct/100,bottomXs=info.boundariesPct.map(bp=>w*bp/100);
+  if(info.auto&&video.videoWidth){const t=coverTransform();vanish=t.offsetX+(t.vw*cfg.vanishXPct/100)*t.scale;bottomXs=info.boundariesPct.map(bp=>t.offsetX+(t.vw*bp/100)*t.scale);}
+  const boundaries=bottomXs.map(xb=>vanish+(xb-vanish)*p),widths=[];for(let i=0;i<info.count;i++)widths.push(boundaries[i+1]-boundaries[i]);
+  return {boundaries,laneWidth:median(widths)||0,count:info.count,egoLane:info.egoLane,auto:info.auto};
 }
 function laneForX(x,y,w,h){
-  const g=laneGeomAtY(y,w,h); if(g.laneWidth<3)return null;
-  for(let i=0;i<cfg.laneCount;i++) if(x>=g.boundaries[i]&&x<g.boundaries[i+1]) return i+1;
-  const margin=g.laneWidth*0.25;
+  const g=laneGeomAtY(y,w,h);if(g.laneWidth<3)return null;
+  for(let i=0;i<g.count;i++)if(x>=g.boundaries[i]&&x<g.boundaries[i+1])return i+1;
+  const margin=g.laneWidth*0.35;
   if(x>=g.boundaries[0]-margin&&x<g.boundaries[0])return 1;
-  if(x>g.boundaries[cfg.laneCount]&&x<=g.boundaries[cfg.laneCount]+margin)return cfg.laneCount;
+  if(x>g.boundaries[g.count]&&x<=g.boundaries[g.count]+margin)return g.count;
   return null;
 }
 
@@ -243,7 +305,7 @@ function candidatesFromPredictions(predictions,t){
   for(const p of predictions||[]){
     if(!VEHICLES.has(p.class)||p.score<threshold)continue;
     const b=imageToScreenBox(p.bbox,t); if(b.x+b.w<0||b.x>t.cw||b.y+b.h<0||b.y>t.ch||b.w<6||b.h<6)continue;
-    const cx=b.x+b.w/2,by=Math.min(t.ch,b.y+b.h),lane=laneForX(cx,by,t.cw,t.ch); if(!lane)continue;
+    const cx=b.x+b.w/2,by=Math.min(t.ch,b.y+b.h),lane=laneForX(cx,by,t.cw,t.ch);
     const ds=distanceState(by,t.ch); out.push({p,b,cx,by,lane,ds});
   }
   return out;
@@ -255,7 +317,7 @@ function updateTracks(cands,now,t){
     let best=-1,bestScore=-1;
     for(let i=0;i<cands.length;i++){
       if(used.has(i))continue;const c=cands[i],ov=iou(tr.box,c.b),mv=centerDist(tr,c,t);if(mv>0.24&&ov<0.01)continue;
-      const classBonus=tr.className===c.p.class?0.25:0,score=ov*3.4+Math.max(0,1-mv/0.24)*1.25+classBonus+(tr.lane===c.lane?0.18:0);
+      const classBonus=tr.className===c.p.class?0.25:0,score=ov*3.4+Math.max(0,1-mv/0.24)*1.25+classBonus+(tr.lane&&c.lane&&tr.lane===c.lane?0.18:0);
       if(score>bestScore){bestScore=score;best=i;}
     }
     if(best>=0&&bestScore>0.35){
@@ -278,31 +340,32 @@ function displayDistanceForTrack(tr,h){
   return {...ds,main:ds.kind==='over'?'>100':'~100'};
 }
 function chooseEgoLead(h){
-  return tracks.filter(t=>!t.stale&&t.lane===cfg.egoLane).sort((a,b)=>(displayDistanceForTrack(a,h).numeric??999)-(displayDistanceForTrack(b,h).numeric??999))[0]||null;
+  const ego=effectiveLaneInfo().egoLane;return tracks.filter(t=>!t.stale&&t.lane===ego).sort((a,b)=>(displayDistanceForTrack(a,h).numeric??999)-(displayDistanceForTrack(b,h).numeric??999))[0]||null;
 }
 
 function updateReadout(lead,h){
   ui.readout.classList.remove('state-warning','state-danger','state-idle');
   const live=tracks.filter(t=>!t.stale);ui.trackCount.textContent=`${live.length} xe`;
-  if(!lead){ui.distance.textContent='--.-';ui.lead.textContent='CHƯA CÓ XE TRONG LÀN MÌNH';ui.laneMain.textContent=`L${cfg.egoLane}`;ui.track.textContent='TRACK: --';ui.readout.classList.add('state-idle');return;}
+  if(!lead){ui.distance.textContent='--.-';ui.lead.textContent='CHƯA CÓ XE TRONG LÀN MÌNH';ui.laneMain.textContent=`L${effectiveLaneInfo().egoLane}`;ui.track.textContent='TRACK: --';ui.readout.classList.add('state-idle');return;}
   const d=displayDistanceForTrack(lead,h);ui.distance.textContent=d.main;ui.lead.textContent=`XE DẪN • L${lead.lane}`;ui.laneMain.textContent=`L${lead.lane}`;ui.track.textContent=`TRACK: #${lead.id}`;
   if(d.kind==='number'&&d.numeric<15)ui.readout.classList.add('state-warning');
 }
-function updateQuality(){const cal=currentCalibration();const gs=cfg.autoGeometry?(geoState.mode==='LOCK'?`AUTO LOCK ${Math.round(geoState.confidence*100)}%`:'AUTO CAL'):'MANUAL';ui.quality.textContent=cal?`${gs} • H ${cal.horizonPct.toFixed(1)}% • ${cfg.cameraHeight.toFixed(2)}m • ĐỎ 100m • ${cfg.laneCount} LÀN`:'CAL: KHÔNG HỢP LỆ';}
+function updateQuality(){const cal=currentCalibration(),gs=cfg.autoGeometry?(geoState.mode==='LOCK'?`AUTO LOCK ${Math.round(geoState.confidence*100)}%`:'AUTO CAL'):'MANUAL',li=effectiveLaneInfo(),ls=cfg.autoLane?(laneState.mode==='LOCK'?`AUTO LANE ${li.count}L ${Math.round(laneState.confidence*100)}%`:'AUTO LANE…'):`${li.count} LÀN`;ui.quality.textContent=cal?`${gs} • ${ls} • ${cfg.cameraHeight.toFixed(2)}m • 100m`:'CAL: KHÔNG HỢP LỆ';}
 
 function drawGuides(){
-  const w=canvas.clientWidth,h=canvas.clientHeight,ry=redY(h),yh=horizonY(h);ctx.save();
-  const bg=laneGeomAtY(h,w,h);ctx.strokeStyle='rgba(40,230,130,.70)';ctx.lineWidth=2;ctx.setLineDash([]);
-  for(let j=0;j<=cfg.laneCount;j++){ctx.beginPath();ctx.moveTo(w*cfg.vanishXPct/100,yh);ctx.lineTo(bg.boundaries[j],h);ctx.stroke();}
-  for(let i=1;i<=cfg.laneCount;i++){const x=(bg.boundaries[i-1]+bg.boundaries[i])/2;ctx.font='700 12px -apple-system,sans-serif';ctx.fillStyle=i===cfg.egoLane?'rgba(50,255,150,.95)':'rgba(255,255,255,.75)';ctx.fillText(`L${i}`,x-8,h-18);}
-  for(const d of [100,70,50,30,20,10]){const y=h*Number(cfg.calLines[d])/100,isRed=d===100,isDrag=calibrationMode&&dragDistance===d;ctx.strokeStyle=isRed?'rgba(255,55,55,.98)':(isDrag?'rgba(255,235,60,1)':'rgba(255,210,30,.72)');ctx.lineWidth=isRed?3:(isDrag?3:1.4);ctx.setLineDash(isRed?[14,8]:[7,7]);ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=ctx.strokeStyle;ctx.font=`${isRed?'800':'700'} 12px -apple-system,sans-serif`;ctx.fillText(`${d} m`,8,Math.max(16,y-5));if(calibrationMode){ctx.beginPath();ctx.arc(w-18,y,7,0,Math.PI*2);ctx.fill();}}
+  if(!calibrationMode)return;
+  const w=canvas.clientWidth,h=canvas.clientHeight,yh=horizonY(h);ctx.save();
+  const bg=laneGeomAtY(h,w,h);ctx.strokeStyle='rgba(40,230,130,.72)';ctx.lineWidth=2;ctx.setLineDash([]);
+  for(let j=0;j<=bg.count;j++){ctx.beginPath();ctx.moveTo(w*cfg.vanishXPct/100,yh);ctx.lineTo(bg.boundaries[j],h);ctx.stroke();}
+  for(const d of [100,70,50,30,20,10]){const y=h*Number(cfg.calLines[d])/100,isRed=d===100,isDrag=dragDistance===d;ctx.strokeStyle=isRed?'rgba(255,55,55,.98)':(isDrag?'rgba(255,235,60,1)':'rgba(255,210,30,.72)');ctx.lineWidth=isRed?3:(isDrag?3:1.4);ctx.setLineDash(isRed?[14,8]:[7,7]);ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle=ctx.strokeStyle;ctx.font=`${isRed?'800':'700'} 12px -apple-system,sans-serif`;ctx.fillText(`${d} m`,8,Math.max(16,y-5));ctx.beginPath();ctx.arc(w-18,y,7,0,Math.PI*2);ctx.fill();}
   ctx.restore();
 }
+
 function drawTrack(tr,h,w){
-  const d=displayDistanceForTrack(tr,h),isLead=tr.lane===cfg.egoLane&&!tr.stale;
+  const d=displayDistanceForTrack(tr,h),ego=effectiveLaneInfo().egoLane,isLead=tr.lane===ego&&!tr.stale;
   ctx.save();ctx.lineWidth=isLead?3.5:2;ctx.strokeStyle=tr.stale?'rgba(180,180,180,.45)':(isLead?'rgba(20,255,120,.98)':'rgba(80,190,255,.92)');ctx.strokeRect(tr.box.x,tr.box.y,tr.box.w,tr.box.h);
   ctx.fillStyle='rgba(255,210,30,.98)';ctx.beginPath();ctx.arc(tr.cx,tr.by,isLead?5:4,0,Math.PI*2);ctx.fill();
-  const label=`L${tr.lane} • #${tr.id} • ${d.text}`;ctx.font=`${isLead?'800 15px':'700 12px'} -apple-system,sans-serif`;const tw=ctx.measureText(label).width;
+  const laneText=tr.lane?`L${tr.lane}`:'L?';const label=`${isLead?'LEAD • ':''}${laneText} • #${tr.id} • ${d.text}`;ctx.font=`${isLead?'800 15px':'700 12px'} -apple-system,sans-serif`;const tw=ctx.measureText(label).width;
   const tx=Math.max(4,Math.min(tr.box.x,w-tw-12)),ty=Math.max(24,tr.box.y-6);ctx.fillStyle='rgba(0,0,0,.76)';ctx.fillRect(tx-4,ty-18,tw+8,22);ctx.fillStyle='#fff';ctx.fillText(label,tx,ty-2);ctx.restore();
 }
 function render(predictions){
@@ -332,8 +395,8 @@ async function startCamera(){
   if(!navigator.mediaDevices?.getUserMedia){alert('Camera web cần HTTPS hoặc localhost.');return;}stopCamera(false);ui.status.textContent='Đang mở camera…';
   try{stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:{ideal:'environment'},width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:30,max:30}}});video.srcObject=stream;await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Camera không trả metadata')),10000);if(video.readyState>=1){clearTimeout(timer);resolve();return;}video.onloadedmetadata=()=>{clearTimeout(timer);resolve();};});await video.play();resizeCanvas();}
   catch(err){console.error(err);ui.status.textContent='Lỗi camera';alert(`Không mở được camera: ${err.message||err}`);return;}
-  sourceMode='camera';running=true;startGPS();ui.start.textContent='DỪNG';ui.videoBtn.textContent='VIDEO THỬ';lastAIEnd=0;if(cfg.autoGeometry)resetAutoGeometry(true);
-  try{await initModel();ui.status.textContent='Đang theo dõi 3–4 làn';if(!drawRAF)drawRAF=requestAnimationFrame(loop);}catch(err){console.error(err);ui.status.textContent='AI chưa sẵn sàng';ui.fps.textContent='AI ERROR';alert(`AI chưa nạp được.\n\n${err.message||err}`);}
+  sourceMode='camera';running=true;laneState={mode:'SEARCH',confidence:0,lastRun:0,count:null,boundariesPct:null,egoLane:null,samples:[]};startGPS();ui.start.textContent='DỪNG';ui.videoBtn.textContent='VIDEO THỬ';lastAIEnd=0;if(cfg.autoGeometry)resetAutoGeometry(true);
+  try{await initModel();ui.status.textContent='Đang nhận xe • AUTO LANE';if(!drawRAF)drawRAF=requestAnimationFrame(loop);}catch(err){console.error(err);ui.status.textContent='AI chưa sẵn sàng';ui.fps.textContent='AI ERROR';alert(`AI chưa nạp được.\n\n${err.message||err}`);}
 }
 function stopCamera(updateUI=true){
   running=false;aiBusy=false;if(drawRAF){cancelAnimationFrame(drawRAF);drawRAF=0;}
@@ -352,8 +415,8 @@ ui.videoFile.addEventListener('change',async()=>{
   try{
     videoObjectUrl=URL.createObjectURL(file);video.srcObject=null;video.src=videoObjectUrl;video.loop=true;video.muted=true;video.playsInline=true;
     await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Video không trả metadata')),10000);video.onloadedmetadata=()=>{clearTimeout(timer);resolve();};video.onerror=()=>{clearTimeout(timer);reject(new Error('Không đọc được video'));};});
-    await video.play();resizeCanvas();sourceMode='video';stopGPS();running=true;ui.start.textContent='DỪNG';ui.videoBtn.textContent='DỪNG VIDEO';lastAIEnd=0;tracks=[];
-    await initModel();ui.status.textContent='VIDEO THỬ • đang chạy cùng pipeline AI';if(!drawRAF)drawRAF=requestAnimationFrame(loop);
+    await video.play();resizeCanvas();sourceMode='video';laneState={mode:'SEARCH',confidence:0,lastRun:0,count:null,boundariesPct:null,egoLane:null,samples:[]};stopGPS();running=true;ui.start.textContent='DỪNG';ui.videoBtn.textContent='DỪNG VIDEO';lastAIEnd=0;tracks=[];
+    await initModel();ui.status.textContent='VIDEO THỬ • AUTO LANE + khoảng cách từng xe';if(!drawRAF)drawRAF=requestAnimationFrame(loop);
   }catch(err){console.error(err);ui.status.textContent='Lỗi video thử';alert(`Không mở được video thử: ${err.message||err}`);stopCamera(true);}
   finally{ui.videoFile.value='';}
 });
@@ -378,7 +441,7 @@ async function detectAdaptive(){
   const side=phase===2?'L':'R',r=buildFarROI(side),min=r.dark?0.14:0.17,preds=await model.detect(roiCanvas,14,min);detectMode=`ZOOM-${side}${r.dark?'+DARK':''}`;return mapPreds(preds,r);
 }
 async function loop(ts){
-  maybeAutoGeometry(ts);
+  maybeAutoGeometry(ts);maybeAutoLane(ts);if(Math.round(ts)%900<20)updateQuality();
   drawRAF=0;if(!running)return;const interval=1000/Math.max(1,cfg.aiHz);
   if(!aiBusy&&model&&video.readyState>=2&&ts-lastAIEnd>=interval){aiBusy=true;const started=performance.now();try{const preds=await detectAdaptive();lastPredictions=preds;render(preds);const elapsed=performance.now()-started,instant=1000/Math.max(elapsed,1);fpsSmooth=fpsSmooth?fpsSmooth*.78+instant*.22:instant;ui.fps.textContent=`AI ${fpsSmooth.toFixed(1)} FPS • ${detectMode}`;}catch(err){console.error(err);ui.status.textContent='AI lỗi 1 frame';}finally{lastAIEnd=performance.now();aiBusy=false;}}
   if(running)drawRAF=requestAnimationFrame(loop);

@@ -50,3 +50,9 @@ input[type="number"] { width:100%; padding:8px; border-radius:8px; border:1px so
 
 .driveStats { position:fixed; top:64px; left:10px; right:10px; z-index:7; display:flex; flex-wrap:wrap; gap:6px; pointer-events:none; }
 .driveStats span { background:rgba(0,0,0,.58); border:1px solid rgba(255,255,255,.16); border-radius:8px; padding:4px 7px; font-size:10px; font-weight:750; letter-spacing:.2px; backdrop-filter:blur(4px); }
+
+/* beta.6: giao diện chạy sạch, khoảng cách nằm trên từng xe */
+#centerReadout { display:none; }
+#qualityBar { top:calc(112px + var(--safe-top)); max-width:82vw; }
+#hint { opacity:.72; font-size:11px; }
+@media (orientation:landscape) { #qualityBar { top:calc(98px + var(--safe-top)); } }

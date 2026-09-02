@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="DistanceADAS">
-  <title>DistanceADAS Web v1.1 beta.5</title>
+  <title>DistanceADAS Web v1.1 beta.6</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="style.css">
@@ -20,7 +20,7 @@
     <div id="topbar">
       <div>
         <div id="status">Sẵn sàng</div>
-        <div id="substatus">v1.1 beta.5 • AUTO LOCK + GPS SPEED + ONLINE/OFFLINE</div>
+        <div id="substatus">v1.1 beta.6 • AUTO LANE + DISTANCE ON VEHICLE</div>
       </div>
       <div class="rightStats">
         <div id="fps">AI -- FPS</div>
@@ -49,7 +49,7 @@
       <span id="trackText">TRACK: --</span>
     </div>
 
-    <div id="hint">Đường đỏ = 100 m. Xe phía trên vẫn được bám và hiển thị &gt;100 m.</div>
+    <div id="hint">AUTO LANE • khoảng cách hiển thị trực tiếp trên từng xe</div>
 
     <div id="controls">
       <button id="startBtn" class="primary">BẬT CAMERA</button>
@@ -63,8 +63,8 @@
       <div class="panel-card">
         <div class="panel-head">
           <div>
-            <div class="panel-title">DistanceADAS v1.1 beta.5</div>
-            <div class="panel-sub">Đo nhiều xe trên 3–4 làn. Đường đỏ được chốt là mốc 100 m.</div>
+            <div class="panel-title">DistanceADAS v1.1 beta.6</div>
+            <div class="panel-sub">Tự nhận 3–4 làn, ẩn lưới khi chạy và gắn khoảng cách trực tiếp lên từng xe.</div>
           </div>
           <button id="closePanelBtn" class="iconBtn">✕</button>
         </div>
@@ -98,7 +98,14 @@
         </div>
         <div class="help">Chiều cao mặc định 1,20 m; có thể kéo thanh hoặc nhập số chính xác rồi bấm TẠO VẠCH. AUTO tạo trước 6 mốc. Khi cần chính xác hơn, bật KÉO VẠCH rồi chạm trực tiếp vạch 10/20/30/50/70/100 m và kéo lên/xuống; thả tay là lưu. Vạch 100 m màu đỏ. Khi khóa, chạm màn hình không làm lệch hiệu chuẩn.</div>
 
-        <div class="sectionTitle">3–4 LÀN ĐƯỜNG</div>
+        <div class="sectionTitle">AUTO LANE 3–4 LÀN</div>
+        <label class="checkrow">
+          <input id="autoLane" type="checkbox" checked>
+          <span>Tự nhận làn theo vạch đường thực tế</span>
+        </label>
+        <div class="help">AUTO LANE phân tích các vạch/biên đường qua nhiều khung hình, tự chọn 3 hoặc 4 làn và tự xác định làn xe mình theo tâm ảnh. Khi chưa đủ tin cậy, xe vẫn được nhận và hiện khoảng cách với nhãn L? thay vì gán sai làn. Các vạch xanh/vạch khoảng cách được ẩn khi chạy bình thường.</div>
+
+        <div class="sectionTitle">DỰ PHÒNG KHI AUTO LANE KHÔNG KHÓA</div>
         <label>
           Số làn theo dõi
           <input id="laneCountRange" type="range" min="3" max="4" value="4" step="1">
@@ -154,7 +161,7 @@
         </label>
 
         <div class="help">
-          Bản này giữ AUTO GEOMETRY/AUTO LOCK và thêm tự nhận ONLINE/OFFLINE + GPS speed + tốc độ tiếp cận + ước lượng tốc độ xe trước. VIDEO THỬ không dùng GPS/tốc độ thật. Nền AUTO GEOMETRY: camera thật tự tìm điểm tụ/đường chân trời qua nhiều frame, ổn định thì AUTO LOCK và tạo lại lưới khoảng cách theo chiều cao camera; VIDEO THỬ vẫn chạy riêng để kiểm tra AI/tracking; đồng thời vẫn ưu tiên bắt đuôi xe, kể cả xe nhỏ ở xa và cảnh ánh sáng yếu. AI luân phiên toàn cảnh với hai vùng phóng đại xa trái/phải; vùng tối được tăng sáng và tương phản. Multi-tracker giữ ID khi xe chạy hoặc đổi làn. Đường đỏ là mốc 100 m: trên đường đỏ hiển thị &gt;100 m, sát đường đỏ ~100 m, dưới đường đỏ hiển thị số mét. Model AI hiện tại vẫn dùng bộ local đã cài sẵn để bản này chạy ngay; kiến trúc detector đã tách để có thể thay model chuyên đuôi xe ở bước sau mà không đổi phần tracking/làn/khoảng cách.
+          Beta.6 giữ AUTO GEOMETRY/AUTO LOCK, ONLINE/OFFLINE, GPS speed và thêm AUTO LANE 3–4 làn. Xe được nhận vẫn hiện khoảng cách ngay cả khi AUTO LANE chưa khóa; khi đó nhãn là L?. VIDEO THỬ không dùng GPS/tốc độ thật. Nền AUTO GEOMETRY: camera thật tự tìm điểm tụ/đường chân trời qua nhiều frame, ổn định thì AUTO LOCK và tạo lại lưới khoảng cách theo chiều cao camera; VIDEO THỬ vẫn chạy riêng để kiểm tra AI/tracking; đồng thời vẫn ưu tiên bắt đuôi xe, kể cả xe nhỏ ở xa và cảnh ánh sáng yếu. AI luân phiên toàn cảnh với hai vùng phóng đại xa trái/phải; vùng tối được tăng sáng và tương phản. Multi-tracker giữ ID khi xe chạy hoặc đổi làn. Đường đỏ là mốc 100 m: trên đường đỏ hiển thị &gt;100 m, sát đường đỏ ~100 m, dưới đường đỏ hiển thị số mét. Model AI hiện tại vẫn dùng bộ local đã cài sẵn để bản này chạy ngay; kiến trúc detector đã tách để có thể thay model chuyên đuôi xe ở bước sau mà không đổi phần tracking/làn/khoảng cách.
         </div>
 
         <div class="panel-actions">
