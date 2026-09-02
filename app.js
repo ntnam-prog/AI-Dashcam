@@ -22,8 +22,8 @@ const labels = {
 };
 
 const VEHICLES = new Set(['car','truck','bus','motorcycle']);
-const CFG_KEY = 'distanceadas_cfg_v11b6r1';
-const APP_VERSION = 'v1.1 beta.6R1';
+const CFG_KEY = 'distanceadas_cfg_v11b6r2';
+const APP_VERSION = 'v1.1 beta.6R2';
 const RED_DISTANCE_M = 100;
 const defaults = {
   cameraHeight:1.20, horizonPct:50.0, effectiveVFovDeg:42, calLocked:true, autoGeometry:true,
@@ -326,30 +326,82 @@ function candidatesFromPredictions(predictions,t){
   return out;
 }
 function centerDist(a,b,t){return Math.hypot((a.cx-b.cx)/t.cw,(a.by-b.by)/t.ch);}
-function sizeDistanceForTrack(tr,h){
-  const cal=currentCalibration(); if(!cal||!tr?.box)return null;
+function sizeDistanceComponents(tr,h){
+  const cal=currentCalibration(); if(!cal||!tr?.box)return {width:null,height:null,combined:null,consistency:0};
   const fy=(cal.kNorm/Math.max(0.5,cfg.cameraHeight))*h,prior=classSizePrior(tr.className);
-  const dw=tr.box.w>4?prior.w*fy/tr.box.w:null,dh=tr.box.h>4?prior.h*fy/tr.box.h:null;
-  const vals=[dw,dh].filter(v=>Number.isFinite(v)&&v>=1&&v<=250);return vals.length?median(vals):null;
+  const dw=tr.box.w>4?prior.w*fy/tr.box.w:null;
+  const dh=tr.box.h>4?prior.h*fy/tr.box.h:null;
+  const valid=v=>Number.isFinite(v)&&v>=1&&v<=250;
+  const vals=[dw,dh].filter(valid);
+  let consistency=0;
+  if(valid(dw)&&valid(dh))consistency=Math.max(0,1-Math.abs(dw-dh)/Math.max(dw,dh));
+  return {width:valid(dw)?dw:null,height:valid(dh)?dh:null,combined:vals.length?median(vals):null,consistency};
 }
-function fusedDistanceMeasurement(tr,h){
-  const road=rawDistanceFromY(tr.by,h),size=sizeDistanceForTrack(tr,h);
-  if(!Number.isFinite(road))return Number.isFinite(size)?size:null;
-  if(!Number.isFinite(size))return road;
-  const ratio=size/road;
-  if(ratio<0.48||ratio>2.05)return road;
-  const far=Math.max(0,Math.min(1,(road-35)/85));
-  const ws=0.14+0.18*far,wr=1-ws;
-  return road*wr+size*ws;
+function roadDistanceConfidence(tr,h,road){
+  if(!Number.isFinite(road))return 0;
+  const cal=currentCalibration(); if(!cal)return 0;
+  const yh=cal.horizonPct/100,yn=tr.by/h,sep=Math.max(0,yn-yh);
+  // Gần đường chân trời chỉ vài pixel làm sai số tăng rất mạnh.
+  const sepConf=Math.max(0,Math.min(1,sep/0.12));
+  const geoConf=geoState.mode==='LOCK'?Math.max(0.35,Math.min(1,geoState.confidence||0.55)):0.42;
+  const groundConf=Math.max(0.35,Math.min(1,tr.box?.h/(h*0.12)));
+  return Math.max(0.12,Math.min(0.96,0.48*sepConf+0.34*geoConf+0.18*groundConf));
+}
+function sizeDistanceConfidence(tr,h,comp,road){
+  if(!Number.isFinite(comp.combined))return 0;
+  const pix=Math.max(tr.box?.w||0,tr.box?.h||0),pixConf=Math.max(0,Math.min(1,pix/(h*0.11)));
+  let agreement=0.55;
+  if(Number.isFinite(road))agreement=Math.max(0,1-Math.abs(comp.combined-road)/Math.max(comp.combined,road));
+  const classConf=tr.className==='car'?0.88:(tr.className==='truck'||tr.className==='bus'?0.72:0.62);
+  return Math.max(0.08,Math.min(0.90,0.32*pixConf+0.28*comp.consistency+0.24*agreement+0.16*classConf));
+}
+function motionDistanceEstimate(tr,now){
+  if(!Number.isFinite(tr?.dFilt)||!Number.isFinite(tr?.dVel)||!tr.dAt)return null;
+  const dt=Math.max(0,Math.min(0.35,(now-tr.dAt)/1000));
+  const pred=tr.dFilt+tr.dVel*dt;
+  return Number.isFinite(pred)&&pred>=0.5&&pred<=250?pred:null;
+}
+function fusedDistanceMeasurement(tr,h,now=performance.now()){
+  const road=rawDistanceFromY(tr.by,h),comp=sizeDistanceComponents(tr,h),size=comp.combined,motion=motionDistanceEstimate(tr,now);
+  const cr=roadDistanceConfidence(tr,h,road),cs=sizeDistanceConfidence(tr,h,comp,road);
+  let cm=Number.isFinite(motion)?0.22:0;
+  // Chuyển động chỉ là nguồn ổn định phụ, không được kéo kết quả đi xa khi detector vừa nhảy box.
+  if(Number.isFinite(motion)&&Number.isFinite(road)&&Math.abs(motion-road)>Math.max(12,road*0.35))cm*=0.25;
+  let sum=0,wsum=0;
+  if(Number.isFinite(road)){sum+=road*cr;wsum+=cr;}
+  if(Number.isFinite(size)){
+    let use=cs;
+    if(Number.isFinite(road)){
+      const ratio=size/road;
+      if(ratio<0.52||ratio>1.92)use*=0.18;
+    }
+    sum+=size*use;wsum+=use;
+  }
+  if(Number.isFinite(motion)){sum+=motion*cm;wsum+=cm;}
+  if(!wsum)return null;
+  let d=sum/wsum;
+  // Ở rất xa ưu tiên mặt đường hơn kích thước xe; ở gần cho size hỗ trợ nhiều hơn.
+  if(Number.isFinite(road)&&road>95)d=0.82*road+0.18*d;
+  tr.distanceDebug={road,size,motion,roadConf:cr,sizeConf:cs,fused:d};
+  return Math.max(0.5,Math.min(250,d));
 }
 function updateDistanceFilter(tr,measurement,now){
   if(!Number.isFinite(measurement))return;
-  if(!Number.isFinite(tr.dFilt)){tr.dFilt=measurement;tr.dVel=0;tr.dAt=now;tr.dHistory=[measurement];return;}
-  const dt=Math.max(0.04,Math.min(0.7,(now-(tr.dAt||now))/1000)),pred=Math.max(0.5,tr.dFilt+(tr.dVel||0)*dt);
-  tr.dHistory=(tr.dHistory||[]).concat(measurement).slice(-5);const robust=median(tr.dHistory),res=robust-pred;
-  const alpha=robust>70?0.30:0.42,beta=robust>70?0.055:0.085;
+  if(!Number.isFinite(tr.dFilt)){tr.dFilt=measurement;tr.dVel=0;tr.dAt=now;tr.dHistory=[measurement];tr.dVar=4;return;}
+  const dt=Math.max(0.04,Math.min(0.7,(now-(tr.dAt||now))/1000));
+  const pred=Math.max(0.5,tr.dFilt+(tr.dVel||0)*dt);
+  tr.dHistory=(tr.dHistory||[]).concat(measurement).slice(-7);
+  const recent=tr.dHistory.slice(-5),robust=median(recent),res=robust-pred;
+  // Adaptive alpha-beta: box ổn định thì bám nhanh; measurement bất thường thì giảm gain.
+  const gate=Math.max(3.0,pred*0.14);
+  const outlier=Math.abs(res)>gate;
+  const far=Math.max(0,Math.min(1,(robust-45)/100));
+  let alpha=0.48-0.18*far,beta=0.095-0.045*far;
+  if(outlier){alpha*=0.32;beta*=0.20;}
   tr.dFilt=Math.max(0.5,Math.min(250,pred+alpha*res));
-  tr.dVel=Math.max(-70,Math.min(70,(tr.dVel||0)+beta*res/dt));tr.dAt=now;
+  tr.dVel=Math.max(-55,Math.min(55,(tr.dVel||0)+beta*res/dt));
+  tr.dVar=(tr.dVar||4)*0.86+Math.min(100,res*res)*0.14;
+  tr.dAt=now;
 }
 function updateTracks(cands,now,t){
   const used=new Set();
@@ -367,18 +419,18 @@ function updateTracks(cands,now,t){
       tr.box={x:tr.box.x*(1-a)+c.b.x*a,y:tr.box.y*(1-a)+c.b.y*a,w:tr.box.w*(1-a)+c.b.w*a,h:tr.box.h*(1-a)+c.b.h*a};
       tr.cx=tr.box.x+tr.box.w/2;tr.by=Math.min(t.ch,tr.box.y+tr.box.h*0.985);tr.vx=(tr.cx-oldCx)/dt;tr.vy=(tr.by-oldBy)/dt;
       tr.className=c.p.class;tr.score=c.p.score;tr.lane=c.lane;tr.ego=egoFootprint(tr.box,tr.by,t.cw,t.ch);
-      const meas=fusedDistanceMeasurement(tr,t.ch);updateDistanceFilter(tr,meas,now);updateTrackMotion(tr,tr.dFilt,now);tr.lastSeen=now;tr.hits++;tr.stale=false;
+      const meas=fusedDistanceMeasurement(tr,t.ch,now);updateDistanceFilter(tr,meas,now);updateTrackMotion(tr,tr.dFilt,now);tr.lastSeen=now;tr.hits++;tr.stale=false;
     }else tr.stale=true;
   }
   for(let i=0;i<cands.length;i++) if(!used.has(i)){
     const c=cands[i],tr={id:nextTrackId++,box:{...c.b},cx:c.cx,by:c.by,vx:0,vy:0,className:c.p.class,score:c.p.score,lane:c.lane,ego:c.ego,dState:c.ds,dSmooth:c.ds.numeric,dFilt:null,dVel:0,dAt:now,dHistory:[],motionSamples:[],closingKmh:null,lastSeen:now,hits:1,stale:false};
-    updateDistanceFilter(tr,fusedDistanceMeasurement(tr,t.ch)??c.ds.numeric,now);tr.motionSamples=[{t:now,d:tr.dFilt}];tracks.push(tr);
+    updateDistanceFilter(tr,fusedDistanceMeasurement(tr,t.ch,now)??c.ds.numeric,now);tr.motionSamples=[{t:now,d:tr.dFilt}];tracks.push(tr);
   }
   tracks=tracks.filter(tr=>now-tr.lastSeen<780).slice(-20);
   if(lockedLeadId!=null&&!tracks.some(t=>t.id===lockedLeadId))lockedLeadId=null;
 }
 function displayDistanceForTrack(tr,h){
-  let d=Number.isFinite(tr.dFilt)?tr.dFilt:fusedDistanceMeasurement(tr,h);if(!Number.isFinite(d))return {kind:'unknown',text:'-- m',numeric:null,main:'--'};
+  let d=Number.isFinite(tr.dFilt)?tr.dFilt:fusedDistanceMeasurement(tr,h,performance.now());if(!Number.isFinite(d))return {kind:'unknown',text:'-- m',numeric:null,main:'--'};
   d=Math.max(1,Math.min(250,d));return {kind:'number',text:`${d<10?d.toFixed(1):Math.round(d)} m`,numeric:d,main:d<10?d.toFixed(1):String(Math.round(d))};
 }
 function chooseEgoLead(h){

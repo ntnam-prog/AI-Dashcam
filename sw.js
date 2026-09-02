@@ -1,4 +1,4 @@
-const CACHE='distanceadas-v1.1-beta.6r1-center-lock-distance-1';
+const CACHE='distanceadas-v1.1-beta.6r2-distance-fusion-1';
 const APP=['./','./index.html','./style.css?v=116r1','./app.js?v=116r1','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png'];
 self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(APP)));});
 self.addEventListener('activate',e=>e.waitUntil(Promise.all([self.clients.claim(),caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))])));

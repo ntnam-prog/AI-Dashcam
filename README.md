@@ -1,18 +1,19 @@
-DistanceADAS Web v1.1 beta.6R1
-CENTER-LANE LOCK + ADVANCED DISTANCE
+DistanceADAS Web v1.1 beta.6R2
 
-Nền mã: v1.1 beta.6, giữ nguyên detector COCO-SSD lite_mobilenet_v2 và pipeline FULL / ZOOM-L / ZOOM-R vốn chạy nhanh trên iPhone.
+MULTI-METHOD DISTANCE FUSION
 
-Mục tiêu bản R1:
-- Chỉ vẽ 1 box đỏ: xe thực sự đang ở phía trước trong hành lang làn của camera.
-- Xe xa hay gần đều được xét theo hình học làn tại đúng cao độ của xe.
-- Khi xe bên cạnh chèn vào làn và trở thành vật cản gần hơn, khóa chuyển ngay sang xe chèn.
-- Không dùng ID/lane label trên box; nhãn chỉ là XE TRƯỚC • xx m.
-- Tracking giữ identity bằng IoU + tâm dự đoán + kích thước + lớp xe.
-- Khoảng cách dùng road-plane calibration làm nguồn chính, có kiểm tra chéo bằng kích thước phương tiện và bộ lọc alpha-beta theo thời gian để giảm nhảy số.
-- AUTO GEOMETRY được phép chạy cả camera thật và VIDEO THỬ để bám đường chân trời tốt hơn.
+Nền mã: v1.1 beta.6R1. Phần DETECT / LOCK / TRACK giữ nguyên hướng đã chốt; R2 chỉ nâng cấp engine khoảng cách.
 
-Lưu ý quan trọng:
-Camera đơn mắt không thể bảo đảm khoảng cách tuyệt đối như radar/LiDAR. VIDEO THỬ đặc biệt có thể sai số nếu chiều cao camera/FOV của video nguồn khác cấu hình. Để hiệu chỉnh số mét thực tế, nên kiểm tra tại các mốc 20/40/60/100 m với đúng vị trí gá camera.
+Pipeline khoảng cách:
+BOX đúng xe -> road-plane distance -> vehicle-size distance -> motion prediction -> confidence fusion -> adaptive alpha-beta filter -> hiển thị mét.
 
-Research prototype only. Không dùng như hệ thống phanh/cảnh báo va chạm được chứng nhận.
+Điểm mới:
+- Road-plane vẫn là nguồn hình học chính.
+- Vehicle-size dùng cả chiều rộng và chiều cao box, có kiểm tra độ nhất quán.
+- Tính confidence riêng cho road-plane và size-depth theo vị trí so với horizon, độ ổn định AUTO GEOMETRY, kích thước pixel và mức đồng thuận giữa các phương pháp.
+- Motion prediction chỉ là nguồn phụ để giữ số mét liên tục giữa các lần AI detect.
+- Fusion giảm trọng số nguồn nào đang mâu thuẫn mạnh; ở khoảng cách xa ưu tiên road-plane hơn size prior.
+- Adaptive alpha-beta filter có outlier gate để giảm nhảy số khi box detector thay đổi đột ngột.
+- Không cần hiệu chuẩn 20/40/60/100 m trước khi chạy. Hiệu chuẩn thực địa có thể làm sau để giảm bias tuyệt đối cho đúng camera/góc gá.
+
+Lưu ý an toàn: đây là prototype nghiên cứu camera đơn, không thay thế radar/LiDAR và không dùng làm căn cứ duy nhất cho phanh/tránh va chạm.
