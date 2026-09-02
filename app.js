@@ -398,7 +398,12 @@ function drawMiddleLaneLock(w,h){
   if(calibrationMode)return;
   // v1.2 beta.1: hành lang đỏ khóa CỨNG giữa camera nhưng chỉ hiển thị đến ~60 m.
   // AUTO LANE chỉ được phép cung cấp độ rộng theo phối cảnh, không được kéo lệch tâm.
-  const yTop=Math.max(horizonY(h)+8,distanceY(60,h)), yBottom=h*.92;
+  // Beta.2: lớp đỏ 60 m là lớp HIỂN THỊ cố định ở phần đường gần.
+  // Không cho đỉnh lớp đỏ chạy ngược lên sát đường chân trời khi AUTO CAL/FOV chưa ổn định.
+  const y60=distanceY(60,h);
+  const visualTop=h*0.60; // giới hạn hiển thị: bắt đầu từ khoảng 60% chiều cao màn hình
+  const yTop=Math.max(visualTop, horizonY(h)+24, y60);
+  const yBottom=h*.92;
   const gt=fixedCenterLaneAtY(yTop,w,h), gb=fixedCenterLaneAtY(yBottom,w,h);
   ctx.save();
   ctx.beginPath();ctx.moveTo(gt.left,yTop);ctx.lineTo(gt.right,yTop);ctx.lineTo(gb.right,yBottom);ctx.lineTo(gb.left,yBottom);ctx.closePath();
