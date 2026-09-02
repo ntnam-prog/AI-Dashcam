@@ -23,7 +23,7 @@ const labels = {
 
 const VEHICLES = new Set(['car','truck','bus','motorcycle']);
 const CFG_KEY = 'distanceadas_cfg_v11b6';
-const APP_VERSION = 'v1.1 beta.9';
+const APP_VERSION = 'v1.2 beta.1';
 const RED_DISTANCE_M = 100;
 const defaults = {
   cameraHeight:1.20, horizonPct:50.0, effectiveVFovDeg:42, calLocked:true, autoGeometry:true,
@@ -271,6 +271,7 @@ function iou(a,b){
   const inter=Math.max(0,x2-x1)*Math.max(0,y2-y1),u=a.w*a.h+b.w*b.h-inter; return u>0?inter/u:0;
 }
 function redY(h){return h*Number(cfg.calLines[100])/100;}
+function distanceY(d,h){const cal=currentCalibration();if(!cal||!Number.isFinite(d)||d<=0)return h*.5;return h*Math.max(0,Math.min(1,cal.horizonPct/100+cal.kNorm/d));}
 function horizonY(h){const cal=currentCalibration();return h*(cal?cal.horizonPct/100:0.50);}
 function rawDistanceFromY(y,h){
   const cal=currentCalibration();if(!cal)return null;const yn=y/h,yh=cal.horizonPct/100,denom=yn-yh;if(denom<=0.0005)return null;
@@ -395,9 +396,9 @@ function drawGuides(){
 
 function drawMiddleLaneLock(w,h){
   if(calibrationMode)return;
-  // Beta.8: hành lang đỏ khóa CỨNG vào chính giữa camera.
-  // AUTO LANE có thể thay đổi độ rộng theo phối cảnh nhưng không được đổi tâm hành lang.
-  const yTop=Math.max(horizonY(h)+10,h*.30), yBottom=h*.92;
+  // v1.2 beta.1: hành lang đỏ khóa CỨNG giữa camera nhưng chỉ hiển thị đến ~60 m.
+  // AUTO LANE chỉ được phép cung cấp độ rộng theo phối cảnh, không được kéo lệch tâm.
+  const yTop=Math.max(horizonY(h)+8,distanceY(60,h)), yBottom=h*.92;
   const gt=fixedCenterLaneAtY(yTop,w,h), gb=fixedCenterLaneAtY(yBottom,w,h);
   ctx.save();
   ctx.beginPath();ctx.moveTo(gt.left,yTop);ctx.lineTo(gt.right,yTop);ctx.lineTo(gb.right,yBottom);ctx.lineTo(gb.left,yBottom);ctx.closePath();
@@ -412,19 +413,15 @@ function drawMiddleLaneLock(w,h){
 
 function rectOverlap(a,b,pad=4){return !(a.x+a.w+pad<b.x||b.x+b.w+pad<a.x||a.y+a.h+pad<b.y||b.y+b.h+pad<a.y);}
 function labelPlacement(tr,tw,w,h,occupied){
-  const bh=24, x0=Math.max(5,Math.min(tr.cx-tw/2,w-tw-10));
-  const candidates=[
-    {x:x0,y:tr.box.y-bh-9},
-    {x:Math.max(5,Math.min(tr.box.x-tw-10,w-tw-10)),y:tr.box.y+4},
-    {x:Math.max(5,Math.min(tr.box.x+tr.box.w+8,w-tw-10)),y:tr.box.y+4},
-    {x:x0,y:tr.box.y+tr.box.h+8},
-    {x:x0,y:tr.box.y-bh-37}
-  ];
-  for(const r of candidates){const q={x:r.x,y:Math.max(6,Math.min(r.y,h-bh-70)),w:tw+10,h:bh};if(!occupied.some(o=>rectOverlap(q,o)))return q;}
-  for(let y=8;y<h-bh-70;y+=bh+5){const q={x:x0,y,w:tw+10,h:bh};if(!occupied.some(o=>rectOverlap(q,o)))return q;}
-  return {x:x0,y:Math.max(6,tr.box.y-bh-9),w:tw+10,h:bh};
+  const bh=24, rw=tw+10, clampX=x=>Math.max(5,Math.min(x,w-rw-5));
+  const xs=[tr.cx-rw/2,tr.box.x-rw-10,tr.box.x+tr.box.w+10,tr.cx-rw/2-34,tr.cx-rw/2+34];
+  const ys=[tr.box.y-bh-10,tr.box.y-bh-39,tr.box.y+tr.box.h+8,tr.box.y+4,tr.box.y-bh-68];
+  for(const y0 of ys){for(const x0 of xs){const q={x:clampX(x0),y:Math.max(96,Math.min(y0,h-bh-118)),w:rw,h:bh};if(!occupied.some(o=>rectOverlap(q,o,7)))return q;}}
+  // Cuối cùng quét theo hàng, vẫn giữ vùng trung tâm dưới thoáng cho khóa làn/nút điều khiển.
+  for(let y=100;y<h-bh-118;y+=bh+7){for(let x=6;x<w-rw-6;x+=Math.max(40,rw*.65)){const q={x,y,w:rw,h:bh};if(!occupied.some(o=>rectOverlap(q,o,7)))return q;}}
+  return {x:clampX(tr.cx-rw/2),y:Math.max(100,Math.min(tr.box.y-bh-10,h-bh-118)),w:rw,h:bh};
 }
-function laneColor(tr,isLead){if(isLead)return '#ff2d2d'; if(tr.lane===1)return '#18d86d'; if(tr.lane>=3)return '#258cff'; return '#f2f2f2';}
+function laneColor(tr,isLead){if(isLead||tr.lane===fixedMiddleLaneIndex())return '#ff2d2d'; if(tr.lane<fixedMiddleLaneIndex())return '#18d86d'; if(tr.lane>fixedMiddleLaneIndex())return '#258cff'; return '#f2f2f2';}
 function drawTrack(tr,h,w,occupied,isLead){
   const d=displayDistanceForTrack(tr,h), color=laneColor(tr,isLead);
   ctx.save();ctx.lineWidth=isLead?3:2;ctx.strokeStyle=tr.stale?'rgba(180,180,180,.45)':color;ctx.strokeRect(tr.box.x,tr.box.y,tr.box.w,tr.box.h);
