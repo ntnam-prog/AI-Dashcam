@@ -1,32 +1,18 @@
-# DistanceADAS Web v1.0 beta.1
+DistanceADAS Web v1.1 beta.6R1
+CENTER-LANE LOCK + ADVANCED DISTANCE
 
-Bản sửa lỗi AI loading của v1.0 beta.
+Nền mã: v1.1 beta.6, giữ nguyên detector COCO-SSD lite_mobilenet_v2 và pipeline FULL / ZOOM-L / ZOOM-R vốn chạy nhanh trên iPhone.
 
-## Điểm mới
+Mục tiêu bản R1:
+- Chỉ vẽ 1 box đỏ: xe thực sự đang ở phía trước trong hành lang làn của camera.
+- Xe xa hay gần đều được xét theo hình học làn tại đúng cao độ của xe.
+- Khi xe bên cạnh chèn vào làn và trở thành vật cản gần hơn, khóa chuyển ngay sang xe chèn.
+- Không dùng ID/lane label trên box; nhãn chỉ là XE TRƯỚC • xx m.
+- Tracking giữ identity bằng IoU + tâm dự đoán + kích thước + lớp xe.
+- Khoảng cách dùng road-plane calibration làm nguồn chính, có kiểm tra chéo bằng kích thước phương tiện và bộ lọc alpha-beta theo thời gian để giảm nhảy số.
+- AUTO GEOMETRY được phép chạy cả camera thật và VIDEO THỬ để bám đường chân trời tốt hơn.
 
-- Không còn treo vô hạn ở `Đang tải AI...`.
-- Tách lỗi camera và lỗi AI.
-- Ưu tiên TensorFlow.js + COCO-SSD + model AI cục bộ.
-- Nếu file local chưa có, app vẫn thử CDN/Google model với timeout rõ ràng.
-- Hiển thị nguồn model `LOCAL` hoặc `NET` cạnh backend TensorFlow.
-- Camera vẫn giữ hình khi AI nạp lỗi để chẩn đoán dễ hơn.
+Lưu ý quan trọng:
+Camera đơn mắt không thể bảo đảm khoảng cách tuyệt đối như radar/LiDAR. VIDEO THỬ đặc biệt có thể sai số nếu chiều cao camera/FOV của video nguồn khác cấu hình. Để hiệu chỉnh số mét thực tế, nên kiểm tra tại các mốc 20/40/60/100 m với đúng vị trí gá camera.
 
-## Windows - lần đầu
-
-1. Giải nén toàn bộ thư mục.
-2. Chạy `SETUP_LOCAL_AI.bat` một lần để tải thư viện và model AI vào máy.
-3. Chạy `RUN_DISTANCEADAS.bat`.
-4. Mở Chrome: `http://localhost:8080`
-5. Bấm `BẬT CAMERA`.
-
-Khi thành công, góc phải sẽ hiện kiểu `TF webgl • LOCAL` hoặc `TF cpu • LOCAL`, và trạng thái sẽ chuyển sang `Đang đo khoảng cách`.
-
-## Cấu trúc AI local
-
-`vendor/` chứa TensorFlow.js và thư viện COCO-SSD.
-
-`models/coco-ssd/` chứa `model.json` và 5 shard trọng số.
-
-## Lưu ý
-
-DistanceADAS là prototype nghiên cứu, không phải hệ thống ADAS được chứng nhận và không được dùng làm căn cứ duy nhất để phanh/tránh va chạm.
+Research prototype only. Không dùng như hệ thống phanh/cảnh báo va chạm được chứng nhận.
