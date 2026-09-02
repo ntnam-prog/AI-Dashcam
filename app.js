@@ -23,7 +23,7 @@ const labels = {
 
 const VEHICLES = new Set(['car','truck','bus','motorcycle']);
 const CFG_KEY = 'distanceadas_cfg_v11b6';
-const APP_VERSION = 'v1.1 beta.6';
+const APP_VERSION = 'v1.1 beta.7';
 const RED_DISTANCE_M = 100;
 const defaults = {
   cameraHeight:1.20, horizonPct:50.0, effectiveVFovDeg:42, calLocked:true, autoGeometry:true,
@@ -361,17 +361,55 @@ function drawGuides(){
   ctx.restore();
 }
 
-function drawTrack(tr,h,w){
-  const d=displayDistanceForTrack(tr,h),ego=effectiveLaneInfo().egoLane,isLead=tr.lane===ego&&!tr.stale;
-  ctx.save();ctx.lineWidth=isLead?3.5:2;ctx.strokeStyle=tr.stale?'rgba(180,180,180,.45)':(isLead?'rgba(20,255,120,.98)':'rgba(80,190,255,.92)');ctx.strokeRect(tr.box.x,tr.box.y,tr.box.w,tr.box.h);
-  ctx.fillStyle='rgba(255,210,30,.98)';ctx.beginPath();ctx.arc(tr.cx,tr.by,isLead?5:4,0,Math.PI*2);ctx.fill();
-  const laneText=tr.lane?`L${tr.lane}`:'L?';const label=`${isLead?'LEAD • ':''}${laneText} • #${tr.id} • ${d.text}`;ctx.font=`${isLead?'800 15px':'700 12px'} -apple-system,sans-serif`;const tw=ctx.measureText(label).width;
-  const tx=Math.max(4,Math.min(tr.box.x,w-tw-12)),ty=Math.max(24,tr.box.y-6);ctx.fillStyle='rgba(0,0,0,.76)';ctx.fillRect(tx-4,ty-18,tw+8,22);ctx.fillStyle='#fff';ctx.fillText(label,tx,ty-2);ctx.restore();
+function drawMiddleLaneLock(w,h){
+  if(calibrationMode)return;
+  const info=effectiveLaneInfo(), ego=info.egoLane;
+  const yTop=Math.max(horizonY(h)+10,h*.30), yBottom=h*.90;
+  const gt=laneGeomAtY(yTop,w,h), gb=laneGeomAtY(yBottom,w,h);
+  if(!gt.boundaries||!gb.boundaries||ego<1||ego>gt.count)return;
+  const a=ego-1,b=ego;
+  ctx.save();
+  ctx.beginPath();ctx.moveTo(gt.boundaries[a],yTop);ctx.lineTo(gt.boundaries[b],yTop);ctx.lineTo(gb.boundaries[b],yBottom);ctx.lineTo(gb.boundaries[a],yBottom);ctx.closePath();
+  ctx.fillStyle='rgba(255,35,35,.13)';ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.88)';ctx.lineWidth=1.5;ctx.setLineDash([8,7]);
+  ctx.beginPath();ctx.moveTo(gt.boundaries[a],yTop);ctx.lineTo(gb.boundaries[a],yBottom);ctx.moveTo(gt.boundaries[b],yTop);ctx.lineTo(gb.boundaries[b],yBottom);ctx.stroke();ctx.setLineDash([]);
+  const cx=(gb.boundaries[a]+gb.boundaries[b])/2, cy=Math.min(h-112,yBottom-20);
+  ctx.strokeStyle='#ff2e2e';ctx.fillStyle='rgba(10,10,12,.82)';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(cx,cy,18,0,Math.PI*2);ctx.fill();ctx.stroke();
+  ctx.beginPath();ctx.moveTo(cx-13,cy);ctx.lineTo(cx+13,cy);ctx.moveTo(cx,cy-13);ctx.lineTo(cx,cy+13);ctx.stroke();
+  const text='🔒 KHÓA LÀN GIỮA';ctx.font='800 11px -apple-system,sans-serif';const tw=ctx.measureText(text).width;ctx.fillStyle='rgba(10,10,12,.82)';ctx.fillRect(cx-tw/2-7,cy+24,tw+14,22);ctx.fillStyle='#ff3a3a';ctx.fillText(text,cx-tw/2,cy+40);ctx.restore();
+}
+
+function rectOverlap(a,b,pad=4){return !(a.x+a.w+pad<b.x||b.x+b.w+pad<a.x||a.y+a.h+pad<b.y||b.y+b.h+pad<a.y);}
+function labelPlacement(tr,tw,w,h,occupied){
+  const bh=24, x0=Math.max(5,Math.min(tr.cx-tw/2,w-tw-10));
+  const candidates=[
+    {x:x0,y:tr.box.y-bh-9},
+    {x:Math.max(5,Math.min(tr.box.x-tw-10,w-tw-10)),y:tr.box.y+4},
+    {x:Math.max(5,Math.min(tr.box.x+tr.box.w+8,w-tw-10)),y:tr.box.y+4},
+    {x:x0,y:tr.box.y+tr.box.h+8},
+    {x:x0,y:tr.box.y-bh-37}
+  ];
+  for(const r of candidates){const q={x:r.x,y:Math.max(6,Math.min(r.y,h-bh-70)),w:tw+10,h:bh};if(!occupied.some(o=>rectOverlap(q,o)))return q;}
+  for(let y=8;y<h-bh-70;y+=bh+5){const q={x:x0,y,w:tw+10,h:bh};if(!occupied.some(o=>rectOverlap(q,o)))return q;}
+  return {x:x0,y:Math.max(6,tr.box.y-bh-9),w:tw+10,h:bh};
+}
+function laneColor(tr,isLead){if(isLead)return '#ff2d2d'; if(tr.lane===1)return '#18d86d'; if(tr.lane>=3)return '#258cff'; return '#f2f2f2';}
+function drawTrack(tr,h,w,occupied,isLead){
+  const d=displayDistanceForTrack(tr,h), color=laneColor(tr,isLead);
+  ctx.save();ctx.lineWidth=isLead?3:2;ctx.strokeStyle=tr.stale?'rgba(180,180,180,.45)':color;ctx.strokeRect(tr.box.x,tr.box.y,tr.box.w,tr.box.h);
+  const laneText=tr.lane?`L${tr.lane}`:'L?';const label=`${isLead?'LEAD • ':''}${laneText} • #${tr.id} • ${d.text}`;ctx.font=`${isLead?'800 15px':'750 12px'} -apple-system,sans-serif`;const tw=ctx.measureText(label).width;
+  const r=labelPlacement(tr,tw,w,h,occupied);occupied.push(r);
+  const anchorX=Math.max(r.x+8,Math.min(tr.cx,r.x+r.w-8)), anchorY=r.y>tr.by?r.y:r.y+r.h;
+  ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(tr.cx,Math.max(tr.box.y,tr.by-tr.box.h*.15));ctx.lineTo(anchorX,anchorY);ctx.stroke();
+  ctx.fillStyle='rgba(8,10,13,.88)';ctx.fillRect(r.x,r.y,r.w,r.h);ctx.strokeStyle=color;ctx.lineWidth=1;ctx.strokeRect(r.x,r.y,r.w,r.h);
+  ctx.fillStyle=color;ctx.fillText(label,r.x+5,r.y+(isLead?17:16));ctx.restore();
 }
 function render(predictions){
-  resizeCanvas();const w=canvas.clientWidth,h=canvas.clientHeight;ctx.clearRect(0,0,w,h);drawGuides();const t=coverTransform();
+  resizeCanvas();const w=canvas.clientWidth,h=canvas.clientHeight;ctx.clearRect(0,0,w,h);drawGuides();drawMiddleLaneLock(w,h);const t=coverTransform();
   const cands=candidatesFromPredictions(predictions,t);updateTracks(cands,performance.now(),t);const lead=chooseEgoLead(h);updateReadout(lead,h);updateMotionReadout(lead,h);
-  if(cfg.showAll)for(const tr of tracks)drawTrack(tr,h,w);else if(lead)drawTrack(lead,h,w);
+  const visible=cfg.showAll?tracks.filter(tr=>!tr.stale||performance.now()-tr.lastSeen<500):(lead?[lead]:[]);
+  visible.sort((a,b)=>(a===lead?-1:b===lead?1:((b.box.w*b.box.h)-(a.box.w*a.box.h))));
+  const occupied=[];for(const tr of visible)drawTrack(tr,h,w,occupied,tr===lead);
 }
 
 const AI_FILES={

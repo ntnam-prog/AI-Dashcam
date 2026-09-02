@@ -56,3 +56,11 @@ input[type="number"] { width:100%; padding:8px; border-radius:8px; border:1px so
 #qualityBar { top:calc(112px + var(--safe-top)); max-width:82vw; }
 #hint { opacity:.72; font-size:11px; }
 @media (orientation:landscape) { #qualityBar { top:calc(98px + var(--safe-top)); } }
+\n\n/* beta.7: HUD layer - khóa làn giữa + nhãn chống chồng */
+.systemBar { position:absolute; left:50%; transform:translateX(-50%); bottom:calc(62px + var(--safe-bottom)); z-index:5; display:flex; gap:0; overflow:hidden; border:1px solid rgba(255,255,255,.24); border-radius:14px; background:rgba(12,14,18,.64); backdrop-filter:blur(7px); pointer-events:none; white-space:nowrap; }
+.systemBar span { padding:8px 14px; font-size:11px; font-weight:750; border-right:1px solid rgba(255,255,255,.12); }
+.systemBar span:first-child { color:#35e38a; }
+.systemBar span:last-child { border-right:0; }
+#hint { bottom:calc(104px + var(--safe-bottom)); color:#ff4545; font-weight:800; letter-spacing:.35px; }
+@media (max-width:560px){ .systemBar span { padding:7px 9px; font-size:9px; } #hint { bottom:calc(112px + var(--safe-bottom)); } }
+@media (orientation:landscape){ .systemBar { bottom:calc(58px + var(--safe-bottom)); } #hint { bottom:calc(96px + var(--safe-bottom)); } }
