@@ -7,13 +7,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="DistanceADAS">
-  <title>DistanceADAS Web v0.2</title>
+  <title>DistanceADAS Web v1.0 beta.1</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <link rel="stylesheet" href="style.css">
-
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
 </head>
 <body>
   <main id="app">
@@ -23,83 +20,122 @@
     <div id="topbar">
       <div>
         <div id="status">Sẵn sàng</div>
-        <div id="substatus">v0.2 • lead + lane corridor + tracking</div>
+        <div id="substatus">v1.0 beta.1 • local-AI fallback • lead tracking • 2-point calibration</div>
       </div>
-      <div id="fps">AI -- FPS</div>
+      <div class="rightStats">
+        <div id="fps">AI -- FPS</div>
+        <div id="backend">TF --</div>
+      </div>
     </div>
 
-    <div id="centerReadout">
-      <span id="distanceMain">--.-</span><span class="unit"> m</span>
+    <div id="centerReadout" class="state-idle">
+      <div><span id="distanceMain">--.-</span><span class="unit"> m</span></div>
       <div id="leadState">CHƯA CÓ XE DẪN</div>
+      <div class="motionRow">
+        <span id="closingMain">Δv --.- m/s</span>
+        <span id="ttcMain">TTC --.- s</span>
+      </div>
     </div>
 
-    <div id="hint">AI ưu tiên xe nằm trong hành lang làn đường phía trước</div>
+    <div id="qualityBar">
+      <span id="qualityText">CAL: chưa kiểm tra</span>
+      <span id="trackText">TRACK: --</span>
+    </div>
+
+    <div id="hint">Khoảng cách được tính tự động từ điểm đáy xe sau khi hiệu chuẩn mặt đường.</div>
 
     <div id="controls">
-      <button id="startBtn">BẬT CAMERA</button>
-      <button id="calBtn">CALIBRATE</button>
+      <button id="startBtn" class="primary">BẬT CAMERA</button>
+      <button id="calBtn">HIỆU CHUẨN</button>
       <button id="settingsBtn">CÀI ĐẶT</button>
     </div>
 
     <section id="panel" class="hidden" aria-hidden="true">
       <div class="panel-card">
-        <div class="panel-title">DistanceADAS v0.2</div>
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">DistanceADAS v1.0 beta.1</div>
+            <div class="panel-sub">Hiệu chuẩn 2 điểm: đặt hai vạch trên mặt đường tại hai khoảng cách đã biết.</div>
+          </div>
+          <button id="closePanelBtn" class="iconBtn">✕</button>
+        </div>
 
+        <div class="sectionTitle">HIỆU CHUẨN KHOẢNG CÁCH</div>
         <label>
-          Đường chân trời
-          <input id="horizonRange" type="range" min="20" max="70" value="43" step="0.1">
-          <span id="horizonValue">43.0%</span>
+          Vạch GẦN trên ảnh
+          <input id="nearRange" type="range" min="55" max="94" value="82" step="0.1">
+          <span id="nearValue">82.0%</span>
         </label>
-
         <label>
-          Vạch chuẩn trên mặt đường
-          <input id="refRange" type="range" min="45" max="95" value="72" step="0.1">
-          <span id="refValue">72.0%</span>
-        </label>
-
-        <label>
-          Khoảng cách thực tại vạch chuẩn
-          <input id="refDistance" type="number" min="0.5" max="100" step="0.1" value="10">
+          Khoảng cách GẦN
+          <input id="nearDistance" type="number" min="1" max="100" step="0.1" value="5">
           <span>m</span>
         </label>
+        <label>
+          Vạch XA trên ảnh
+          <input id="farRange" type="range" min="25" max="80" value="58" step="0.1">
+          <span id="farValue">58.0%</span>
+        </label>
+        <label>
+          Khoảng cách XA
+          <input id="farDistance" type="number" min="2" max="200" step="0.1" value="20">
+          <span>m</span>
+        </label>
+        <div id="calResult" class="calResult">Horizon tính toán: --</div>
 
+        <div class="sectionTitle">HÀNH LANG LÀN XE</div>
+        <label>
+          Điểm tụ ngang
+          <input id="vanishXRange" type="range" min="25" max="75" value="50" step="0.5">
+          <span id="vanishXValue">50%</span>
+        </label>
+        <label>
+          Tâm làn ở đáy ảnh
+          <input id="laneCenterRange" type="range" min="20" max="80" value="50" step="0.5">
+          <span id="laneCenterValue">50%</span>
+        </label>
         <label>
           Độ rộng làn ở đáy ảnh
-          <input id="laneWidthRange" type="range" min="35" max="90" value="62" step="1">
+          <input id="laneWidthRange" type="range" min="30" max="95" value="62" step="1">
           <span id="laneWidthValue">62%</span>
         </label>
 
+        <div class="sectionTitle">AI & THEO DÕI</div>
         <label>
-          Ngưỡng AI
+          Ngưỡng nhận dạng AI
           <input id="scoreRange" type="range" min="0.25" max="0.90" value="0.45" step="0.05">
           <span id="scoreValue">0.45</span>
         </label>
-
         <label>
           Làm mượt khoảng cách
-          <input id="smoothRange" type="range" min="0.10" max="0.90" value="0.35" step="0.05">
-          <span id="smoothValue">0.35</span>
+          <input id="smoothRange" type="range" min="0.10" max="0.85" value="0.30" step="0.05">
+          <span id="smoothValue">0.30</span>
         </label>
-
+        <label>
+          Tần số AI mục tiêu
+          <input id="aiHzRange" type="range" min="4" max="12" value="9" step="1">
+          <span id="aiHzValue">9 Hz</span>
+        </label>
         <label class="checkrow">
           <input id="centerOnly" type="checkbox" checked>
-          Ưu tiên xe trong làn phía trước
+          <span>Chỉ chọn xe nằm trong hành lang làn trước</span>
+        </label>
+        <label class="checkrow">
+          <input id="showAll" type="checkbox" checked>
+          <span>Hiện các xe phụ ngoài xe dẫn</span>
         </label>
 
         <div class="help">
-          v0.2 chưa dùng model lane chuyên dụng như OpenPilot. App dựng một hành lang làn đường theo phối cảnh từ horizon,
-          rồi chọn xe có điểm đáy nằm trong hành lang đó. Đây là bước trung gian để lead vehicle ổn định hơn trước khi ghép model lane riêng.
+          Bản beta dùng COCO-SSD để nhận dạng xe và hình học mặt đường để đo khoảng cách. Hai mốc chuẩn giúp tự tính horizon thay vì nhập thủ công. Sai số vẫn tăng khi đường dốc, điện thoại rung/nghiêng, camera bị crop/stabilization hoặc bbox AI không chạm đúng mặt đường.
         </div>
 
         <div class="panel-actions">
           <button id="resetCalBtn">MẶC ĐỊNH</button>
-          <button id="saveCalBtn">LƯU</button>
-          <button id="closePanelBtn">ĐÓNG</button>
+          <button id="saveCalBtn" class="primary">LƯU HIỆU CHUẨN</button>
         </div>
       </div>
     </section>
   </main>
-
   <script src="app.js"></script>
 </body>
 </html>
