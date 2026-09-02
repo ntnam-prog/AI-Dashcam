@@ -23,7 +23,7 @@ const labels = {
 
 const VEHICLES = new Set(['car','truck','bus','motorcycle']);
 const CFG_KEY = 'distanceadas_cfg_v11b6';
-const APP_VERSION = 'v1.1 beta.7';
+const APP_VERSION = 'v1.1 beta.9';
 const RED_DISTANCE_M = 100;
 const defaults = {
   cameraHeight:1.20, horizonPct:50.0, effectiveVFovDeg:42, calLocked:true, autoGeometry:true,
@@ -339,15 +339,47 @@ function displayDistanceForTrack(tr,h){
   }
   return {...ds,main:ds.kind==='over'?'>100':'~100'};
 }
+function fixedMiddleLaneIndex(){
+  const n=Math.max(3,effectiveLaneInfo().count||cfg.laneCount||3);
+  return Math.ceil(n/2);
+}
+function fixedCenterLaneAtY(y,w,h){
+  // Beta.8: làn khóa luôn neo đúng tâm camera. AUTO LANE chỉ cung cấp độ rộng,
+  // tuyệt đối không được kéo hành lang đỏ sang trái/phải.
+  const g=laneGeomAtY(y,w,h);
+  let width=Number(g.laneWidth)||0;
+  const yh=horizonY(h),tt=Math.max(0,Math.min(1,(y-yh)/Math.max(1,h-yh))),p=Math.pow(tt,0.92);
+  const fallback=w*(cfg.laneWidthBottomPct/100)*p;
+  if(!Number.isFinite(width)||width<8)width=fallback;
+  // Chặn các nghiệm AUTO LANE bất thường để vùng khóa không phình/co lung tung.
+  const minW=Math.max(10,w*0.10*p), maxW=Math.max(minW+2,w*0.62*p);
+  width=Math.max(minW,Math.min(maxW,width));
+  const cx=w/2;
+  return {left:cx-width/2,right:cx+width/2,cx,width,lane:fixedMiddleLaneIndex()};
+}
+function trackInsideFixedCenterLane(tr,w,h){
+  if(!tr||tr.stale)return false;
+  const g=fixedCenterLaneAtY(Math.max(horizonY(h)+2,Math.min(h,tr.by)),w,h);
+  // Dùng tâm đáy bbox: xe chỉ thành LEAD khi tâm đuôi xe thực sự đi vào làn đỏ.
+  return tr.cx>=g.left && tr.cx<=g.right;
+}
 function chooseEgoLead(h){
-  const ego=effectiveLaneInfo().egoLane;return tracks.filter(t=>!t.stale&&t.lane===ego).sort((a,b)=>(displayDistanceForTrack(a,h).numeric??999)-(displayDistanceForTrack(b,h).numeric??999))[0]||null;
+  const w=canvas.clientWidth;
+  const inside=tracks.filter(t=>trackInsideFixedCenterLane(t,w,h));
+  // Xe gần nhất trong hành lang giữa là LEAD. Nếu hai xe gần tương đương,
+  // ưu tiên xe có tâm gần trục camera hơn để tránh nhảy sang xe sát biên.
+  return inside.sort((a,b)=>{
+    const da=displayDistanceForTrack(a,h).numeric??999, db=displayDistanceForTrack(b,h).numeric??999;
+    if(Math.abs(da-db)>3)return da-db;
+    return Math.abs(a.cx-w/2)-Math.abs(b.cx-w/2);
+  })[0]||null;
 }
 
 function updateReadout(lead,h){
   ui.readout.classList.remove('state-warning','state-danger','state-idle');
   const live=tracks.filter(t=>!t.stale);ui.trackCount.textContent=`${live.length} xe`;
   if(!lead){ui.distance.textContent='--.-';ui.lead.textContent='CHƯA CÓ XE TRONG LÀN MÌNH';ui.laneMain.textContent=`L${effectiveLaneInfo().egoLane}`;ui.track.textContent='TRACK: --';ui.readout.classList.add('state-idle');return;}
-  const d=displayDistanceForTrack(lead,h);ui.distance.textContent=d.main;ui.lead.textContent=`XE DẪN • L${lead.lane}`;ui.laneMain.textContent=`L${lead.lane}`;ui.track.textContent=`TRACK: #${lead.id}`;
+  const d=displayDistanceForTrack(lead,h);ui.distance.textContent=d.main;ui.lead.textContent=`XE DẪN • L${fixedMiddleLaneIndex()}`;ui.laneMain.textContent=`L${fixedMiddleLaneIndex()}`;ui.track.textContent=`TRACK: #${lead.id}`;
   if(d.kind==='number'&&d.numeric<15)ui.readout.classList.add('state-warning');
 }
 function updateQuality(){const cal=currentCalibration(),gs=cfg.autoGeometry?(geoState.mode==='LOCK'?`AUTO LOCK ${Math.round(geoState.confidence*100)}%`:'AUTO CAL'):'MANUAL',li=effectiveLaneInfo(),ls=cfg.autoLane?(laneState.mode==='LOCK'?`AUTO LANE ${li.count}L ${Math.round(laneState.confidence*100)}%`:'AUTO LANE…'):`${li.count} LÀN`;ui.quality.textContent=cal?`${gs} • ${ls} • ${cfg.cameraHeight.toFixed(2)}m • 100m`:'CAL: KHÔNG HỢP LỆ';}
@@ -363,17 +395,16 @@ function drawGuides(){
 
 function drawMiddleLaneLock(w,h){
   if(calibrationMode)return;
-  const info=effectiveLaneInfo(), ego=info.egoLane;
-  const yTop=Math.max(horizonY(h)+10,h*.30), yBottom=h*.90;
-  const gt=laneGeomAtY(yTop,w,h), gb=laneGeomAtY(yBottom,w,h);
-  if(!gt.boundaries||!gb.boundaries||ego<1||ego>gt.count)return;
-  const a=ego-1,b=ego;
+  // Beta.8: hành lang đỏ khóa CỨNG vào chính giữa camera.
+  // AUTO LANE có thể thay đổi độ rộng theo phối cảnh nhưng không được đổi tâm hành lang.
+  const yTop=Math.max(horizonY(h)+10,h*.30), yBottom=h*.92;
+  const gt=fixedCenterLaneAtY(yTop,w,h), gb=fixedCenterLaneAtY(yBottom,w,h);
   ctx.save();
-  ctx.beginPath();ctx.moveTo(gt.boundaries[a],yTop);ctx.lineTo(gt.boundaries[b],yTop);ctx.lineTo(gb.boundaries[b],yBottom);ctx.lineTo(gb.boundaries[a],yBottom);ctx.closePath();
-  ctx.fillStyle='rgba(255,35,35,.13)';ctx.fill();
+  ctx.beginPath();ctx.moveTo(gt.left,yTop);ctx.lineTo(gt.right,yTop);ctx.lineTo(gb.right,yBottom);ctx.lineTo(gb.left,yBottom);ctx.closePath();
+  ctx.fillStyle='rgba(255,35,35,.15)';ctx.fill();
   ctx.strokeStyle='rgba(255,255,255,.88)';ctx.lineWidth=1.5;ctx.setLineDash([8,7]);
-  ctx.beginPath();ctx.moveTo(gt.boundaries[a],yTop);ctx.lineTo(gb.boundaries[a],yBottom);ctx.moveTo(gt.boundaries[b],yTop);ctx.lineTo(gb.boundaries[b],yBottom);ctx.stroke();ctx.setLineDash([]);
-  const cx=(gb.boundaries[a]+gb.boundaries[b])/2, cy=Math.min(h-112,yBottom-20);
+  ctx.beginPath();ctx.moveTo(gt.left,yTop);ctx.lineTo(gb.left,yBottom);ctx.moveTo(gt.right,yTop);ctx.lineTo(gb.right,yBottom);ctx.stroke();ctx.setLineDash([]);
+  const cx=w/2, cy=Math.min(h-112,yBottom-20);
   ctx.strokeStyle='#ff2e2e';ctx.fillStyle='rgba(10,10,12,.82)';ctx.lineWidth=2.5;ctx.beginPath();ctx.arc(cx,cy,18,0,Math.PI*2);ctx.fill();ctx.stroke();
   ctx.beginPath();ctx.moveTo(cx-13,cy);ctx.lineTo(cx+13,cy);ctx.moveTo(cx,cy-13);ctx.lineTo(cx,cy+13);ctx.stroke();
   const text='🔒 KHÓA LÀN GIỮA';ctx.font='800 11px -apple-system,sans-serif';const tw=ctx.measureText(text).width;ctx.fillStyle='rgba(10,10,12,.82)';ctx.fillRect(cx-tw/2-7,cy+24,tw+14,22);ctx.fillStyle='#ff3a3a';ctx.fillText(text,cx-tw/2,cy+40);ctx.restore();
@@ -397,7 +428,7 @@ function laneColor(tr,isLead){if(isLead)return '#ff2d2d'; if(tr.lane===1)return 
 function drawTrack(tr,h,w,occupied,isLead){
   const d=displayDistanceForTrack(tr,h), color=laneColor(tr,isLead);
   ctx.save();ctx.lineWidth=isLead?3:2;ctx.strokeStyle=tr.stale?'rgba(180,180,180,.45)':color;ctx.strokeRect(tr.box.x,tr.box.y,tr.box.w,tr.box.h);
-  const laneText=tr.lane?`L${tr.lane}`:'L?';const label=`${isLead?'LEAD • ':''}${laneText} • #${tr.id} • ${d.text}`;ctx.font=`${isLead?'800 15px':'750 12px'} -apple-system,sans-serif`;const tw=ctx.measureText(label).width;
+  const laneText=isLead?`L${fixedMiddleLaneIndex()}`:(tr.lane?`L${tr.lane}`:'L?');const label=`${isLead?'LEAD • ':''}${laneText} • ${d.text}`;ctx.font=`${isLead?'800 15px':'750 12px'} -apple-system,sans-serif`;const tw=ctx.measureText(label).width;
   const r=labelPlacement(tr,tw,w,h,occupied);occupied.push(r);
   const anchorX=Math.max(r.x+8,Math.min(tr.cx,r.x+r.w-8)), anchorY=r.y>tr.by?r.y:r.y+r.h;
   ctx.strokeStyle=color;ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(tr.cx,Math.max(tr.box.y,tr.by-tr.box.h*.15));ctx.lineTo(anchorX,anchorY);ctx.stroke();

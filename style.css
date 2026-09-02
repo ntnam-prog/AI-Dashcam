@@ -64,3 +64,7 @@ input[type="number"] { width:100%; padding:8px; border-radius:8px; border:1px so
 #hint { bottom:calc(104px + var(--safe-bottom)); color:#ff4545; font-weight:800; letter-spacing:.35px; }
 @media (max-width:560px){ .systemBar span { padding:7px 9px; font-size:9px; } #hint { bottom:calc(112px + var(--safe-bottom)); } }
 @media (orientation:landscape){ .systemBar { bottom:calc(58px + var(--safe-bottom)); } #hint { bottom:calc(96px + var(--safe-bottom)); } }
+
+
+/* beta.8: fixed center lane lock */
+#hint { color:#ff3b3b; text-shadow:0 1px 4px #000,0 0 8px rgba(255,0,0,.22); }
