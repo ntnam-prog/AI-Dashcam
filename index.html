@@ -7,13 +7,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="DistanceADAS">
-  <title>DistanceADAS Web v0.2</title>
+  <title>DistanceADAS Web v1.1 beta.6R1</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="style.css">
-
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3"></script>
+  <link rel="stylesheet" href="style.css?v=116r1">
 </head>
 <body>
   <main id="app">
@@ -23,83 +20,157 @@
     <div id="topbar">
       <div>
         <div id="status">Sẵn sàng</div>
-        <div id="substatus">v0.2 • lead + lane corridor + tracking</div>
+        <div id="substatus">v1.1 beta.6R1 • CENTER-LANE LOCK + ADVANCED DISTANCE</div>
       </div>
-      <div id="fps">AI -- FPS</div>
+      <div class="rightStats">
+        <div id="fps">AI -- FPS</div>
+        <div id="backend">TF --</div>
+      </div>
     </div>
 
-    <div id="centerReadout">
-      <span id="distanceMain">--.-</span><span class="unit"> m</span>
-      <div id="leadState">CHƯA CÓ XE DẪN</div>
+    <div id="centerReadout" class="state-idle">
+      <div><span id="distanceMain">--.-</span><span class="unit"> m</span></div>
+      <div id="leadState">CHƯA CÓ XE TRONG LÀN MÌNH</div>
+      <div class="motionRow">
+        <span id="laneMain">L--</span>
+        <span id="trackCount">0 xe</span>
+      </div>
     </div>
 
-    <div id="hint">AI ưu tiên xe nằm trong hành lang làn đường phía trước</div>
+    <div id="driveStats" class="driveStats">
+      <span id="networkState">NET: --</span>
+      <span id="gpsSpeed">GPS: -- km/h</span>
+      <span id="closingSpeed">TIẾP CẬN: -- km/h</span>
+      <span id="leadSpeed">XE TRƯỚC: -- km/h</span>
+    </div>
+
+    <div id="qualityBar">
+      <span id="qualityText">CAL: chưa kiểm tra</span>
+      <span id="trackText">TRACK: --</span>
+    </div>
+
+    <div id="hint">AUTO LANE • khoảng cách hiển thị trực tiếp trên từng xe</div>
 
     <div id="controls">
-      <button id="startBtn">BẬT CAMERA</button>
-      <button id="calBtn">CALIBRATE</button>
+      <button id="startBtn" class="primary">BẬT CAMERA</button>
+      <button id="videoBtn">VIDEO THỬ</button>
+      <input id="videoFile" type="file" accept="video/*" hidden>
+      <button id="calBtn">AUTO LẠI</button>
       <button id="settingsBtn">CÀI ĐẶT</button>
     </div>
 
     <section id="panel" class="hidden" aria-hidden="true">
       <div class="panel-card">
-        <div class="panel-title">DistanceADAS v0.2</div>
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">DistanceADAS v1.1 beta.6R1</div>
+            <div class="panel-sub">Giữ lõi beta.6: ưu tiên khóa đúng xe phía trước trong làn camera và đo khoảng cách ổn định.</div>
+          </div>
+          <button id="closePanelBtn" class="iconBtn">✕</button>
+        </div>
 
-        <label>
-          Đường chân trời
-          <input id="horizonRange" type="range" min="20" max="70" value="43" step="0.1">
-          <span id="horizonValue">43.0%</span>
+        <div class="sectionTitle">KHOẢNG CÁCH TỰ ĐỘNG + TINH CHỈNH</div>
+        <label class="checkrow">
+          <input id="autoGeometry" type="checkbox" checked>
+          <span>AUTO CAL + AUTO LOCK hình học mặt đường</span>
         </label>
-
+        <div class="help">Khi bật camera thật, app tự tìm điểm tụ/đường chân trời từ các cấu trúc vạch đường qua nhiều khung hình. Khi kết quả ổn định, trạng thái chuyển sang AUTO LOCK và tự tạo lại các vạch khoảng cách theo chiều cao camera. Nếu đổi vị trí gá điện thoại, bấm AUTO LẠI.</div>
         <label>
-          Vạch chuẩn trên mặt đường
-          <input id="refRange" type="range" min="45" max="95" value="72" step="0.1">
-          <span id="refValue">72.0%</span>
+          Chiều cao camera
+          <input id="cameraHeightRange" type="range" min="0.80" max="2.20" step="0.01" value="1.20">
+          <span id="cameraHeightValue">1.20 m</span>
         </label>
-
         <label>
-          Khoảng cách thực tại vạch chuẩn
-          <input id="refDistance" type="number" min="0.5" max="100" step="0.1" value="10">
+          Nhập chính xác chiều cao
+          <input id="cameraHeight" type="number" min="0.80" max="2.20" step="0.01" value="1.20">
           <span>m</span>
         </label>
-
         <label>
-          Độ rộng làn ở đáy ảnh
-          <input id="laneWidthRange" type="range" min="35" max="90" value="62" step="1">
-          <span id="laneWidthValue">62%</span>
+          Đường chân trời / điểm tụ dọc
+          <input id="horizonRange" type="range" min="35" max="65" value="50" step="0.1">
+          <span id="horizonValue">50.0%</span>
+        </label>
+        <div id="calResult" class="calResult">AUTO: camera 1.20 m • các vạch 10/20/30/50/70/100 m</div>
+        <div class="calButtons">
+          <button id="autoCalBtn">TẠO VẠCH TỪ 1,20 m</button>
+          <button id="touchCalBtn">KÉO VẠCH TRÊN MÀN HÌNH</button>
+          <button id="lockCalBtn">KHÓA VẠCH</button>
+        </div>
+        <div class="help">Chiều cao mặc định 1,20 m; có thể kéo thanh hoặc nhập số chính xác rồi bấm TẠO VẠCH. AUTO tạo trước 6 mốc. Khi cần chính xác hơn, bật KÉO VẠCH rồi chạm trực tiếp vạch 10/20/30/50/70/100 m và kéo lên/xuống; thả tay là lưu. Vạch 100 m màu đỏ. Khi khóa, chạm màn hình không làm lệch hiệu chuẩn.</div>
+
+        <div class="sectionTitle">AUTO LANE 3–4 LÀN</div>
+        <label class="checkrow">
+          <input id="autoLane" type="checkbox" checked>
+          <span>Tự nhận làn theo vạch đường thực tế</span>
+        </label>
+        <div class="help">AUTO LANE phân tích các vạch/biên đường qua nhiều khung hình, tự chọn 3 hoặc 4 làn và tự xác định làn xe mình theo tâm ảnh. Khi chưa đủ tin cậy, xe vẫn được nhận và hiện khoảng cách với nhãn L? thay vì gán sai làn. Các vạch xanh/vạch khoảng cách được ẩn khi chạy bình thường.</div>
+
+        <div class="sectionTitle">DỰ PHÒNG KHI AUTO LANE KHÔNG KHÓA</div>
+        <label>
+          Số làn theo dõi
+          <input id="laneCountRange" type="range" min="3" max="4" value="4" step="1">
+          <span id="laneCountValue">4 làn</span>
+        </label>
+        <label>
+          Làn xe mình
+          <input id="egoLaneRange" type="range" min="1" max="4" value="2" step="1">
+          <span id="egoLaneValue">L2</span>
+        </label>
+        <label>
+          Điểm tụ ngang
+          <input id="vanishXRange" type="range" min="25" max="75" value="50" step="0.5">
+          <span id="vanishXValue">50%</span>
+        </label>
+        <label>
+          Tâm làn xe mình ở đáy ảnh
+          <input id="laneCenterRange" type="range" min="20" max="80" value="50" step="0.5">
+          <span id="laneCenterValue">50%</span>
+        </label>
+        <label>
+          Rộng 1 làn ở đáy ảnh
+          <input id="laneWidthRange" type="range" min="12" max="36" value="22" step="0.5">
+          <span id="laneWidthValue">22%</span>
         </label>
 
-        <label>
-          Ngưỡng AI
-          <input id="scoreRange" type="range" min="0.25" max="0.90" value="0.45" step="0.05">
-          <span id="scoreValue">0.45</span>
+        <div class="sectionTitle">TỐC ĐỘ & MẠNG</div>
+        <label class="checkrow">
+          <input id="gpsSpeedEnabled" type="checkbox" checked>
+          <span>Dùng GPS để tính tốc độ xe mình</span>
         </label>
+        <div class="help">Camera/AI/khoảng cách vẫn chạy khi mất mạng. GPS lấy tốc độ trực tiếp từ điện thoại khi trình duyệt cung cấp; tốc độ xe trước là ước lượng từ GPS + biến thiên khoảng cách và được ký hiệu ~.</div>
 
+        <div class="sectionTitle">AI & THEO DÕI XE CHUYỂN ĐỘNG</div>
+        <label>
+          Ngưỡng nhận dạng AI
+          <input id="scoreRange" type="range" min="0.20" max="0.80" value="0.34" step="0.02">
+          <span id="scoreValue">0.34</span>
+        </label>
         <label>
           Làm mượt khoảng cách
-          <input id="smoothRange" type="range" min="0.10" max="0.90" value="0.35" step="0.05">
-          <span id="smoothValue">0.35</span>
+          <input id="smoothRange" type="range" min="0.10" max="0.75" value="0.28" step="0.02">
+          <span id="smoothValue">0.28</span>
         </label>
-
+        <label>
+          Tần số AI mục tiêu
+          <input id="aiHzRange" type="range" min="4" max="12" value="12" step="1">
+          <span id="aiHzValue">12 Hz</span>
+        </label>
         <label class="checkrow">
-          <input id="centerOnly" type="checkbox" checked>
-          Ưu tiên xe trong làn phía trước
+          <input id="showAll" type="checkbox">
+          <span>Chế độ chẩn đoán nhiều xe (không vẽ khi chạy chuẩn)</span>
         </label>
 
         <div class="help">
-          v0.2 chưa dùng model lane chuyên dụng như OpenPilot. App dựng một hành lang làn đường theo phối cảnh từ horizon,
-          rồi chọn xe có điểm đáy nằm trong hành lang đó. Đây là bước trung gian để lead vehicle ổn định hơn trước khi ghép model lane riêng.
+          Beta.6R1 giữ nguyên lõi nhận xe nhanh của beta.6; mục tiêu hiển thị duy nhất là xe phía trước trong làn camera. Khi xe khác chèn vào hành lang làn và gần hơn, khóa chuyển sang xe chèn. Xe được nhận vẫn hiện khoảng cách ngay cả khi AUTO LANE chưa khóa; khi đó nhãn là L?. VIDEO THỬ không dùng GPS/tốc độ thật. Nền AUTO GEOMETRY: camera thật tự tìm điểm tụ/đường chân trời qua nhiều frame, ổn định thì AUTO LOCK và tạo lại lưới khoảng cách theo chiều cao camera; VIDEO THỬ vẫn chạy riêng để kiểm tra AI/tracking; đồng thời vẫn ưu tiên bắt đuôi xe, kể cả xe nhỏ ở xa và cảnh ánh sáng yếu. AI luân phiên toàn cảnh với hai vùng phóng đại xa trái/phải; vùng tối được tăng sáng và tương phản. Multi-tracker giữ ID khi xe chạy hoặc đổi làn. Đường đỏ là mốc 100 m: trên đường đỏ hiển thị &gt;100 m, sát đường đỏ ~100 m, dưới đường đỏ hiển thị số mét. Model AI hiện tại vẫn dùng bộ local đã cài sẵn để bản này chạy ngay; kiến trúc detector đã tách để có thể thay model chuyên đuôi xe ở bước sau mà không đổi phần tracking/làn/khoảng cách.
         </div>
 
         <div class="panel-actions">
           <button id="resetCalBtn">MẶC ĐỊNH</button>
-          <button id="saveCalBtn">LƯU</button>
-          <button id="closePanelBtn">ĐÓNG</button>
+          <button id="saveCalBtn" class="primary">LƯU</button>
         </div>
       </div>
     </section>
   </main>
-
-  <script src="app.js"></script>
+  <script src="app.js?v=116r1"></script>
 </body>
 </html>
