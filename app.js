@@ -22,8 +22,8 @@ const labels = {
 };
 
 const VEHICLES = new Set(['car','truck','bus','motorcycle']);
-const CFG_KEY = 'distanceadas_cfg_v11b6r2_widetele';
-const APP_VERSION = 'v1.1 beta.6R2-WIDE-TELE';
+const CFG_KEY = 'distanceadas_cfg_v11b6r2_displayfix_egolock';
+const APP_VERSION = 'v1.1 beta.6R2-DISPLAYFIX-EGOLOCK';
 const RED_DISTANCE_M = 100;
 const defaults = {
   cameraHeight:1.20, horizonPct:50.0, effectiveVFovDeg:42, calLocked:true, autoGeometry:true,
@@ -34,6 +34,7 @@ const defaults = {
 
 let cfg = loadCfg();
 let stream=null, model=null, running=false, aiBusy=false, drawRAF=0, sourceMode='none', videoObjectUrl=null;
+let visualLeadHold=null; const VISUAL_HOLD_MS=720;
 
 let cameraProfile={wideId:null,teleId:null,current:'wide',devices:[],canZoom:false,zoomMin:1,zoomMax:1};
 const teleVideo=document.createElement('video');
@@ -443,12 +444,20 @@ function classSizePrior(name){
 }
 function egoFootprint(box,y,w,h){
   const g=laneGeomAtY(y,w,h),i=Math.max(0,Math.min(g.count-1,g.egoLane-1));
-  const left=g.boundaries[i],right=g.boundaries[i+1],laneW=Math.max(1,right-left);
-  const bx1=box.x+box.w*0.10,bx2=box.x+box.w*0.90;
+  const left=g.boundaries[i],right=g.boundaries[i+1],laneW=Math.max(1,right-left),center=(left+right)/2;
+  // Use the lower/rear portion of the vehicle, not the full rectangle. Side-lane vehicles
+  // can have a large box overlapping the ego lane even though their wheels/ground point are outside.
+  const bx1=box.x+box.w*0.18,bx2=box.x+box.w*0.82;
   const overlap=Math.max(0,Math.min(bx2,right)-Math.max(bx1,left));
   const ratio=overlap/Math.max(1,Math.min(bx2-bx1,laneW));
-  const cx=box.x+box.w/2,centerInside=cx>=left&&cx<=right;
-  return {left,right,laneW,ratio,centerInside,eligible:centerInside||ratio>=0.30};
+  const cx=box.x+box.w/2,offset=(cx-center)/laneW,absOffset=Math.abs(offset);
+  const centerInside=cx>=left&&cx<=right;
+  // Normal lead: rear centre must be well inside the ego lane.
+  const core=centerInside&&absOffset<=0.43;
+  // Cut-in: allow a vehicle whose body has already occupied most of our lane, even if its
+  // centre has not crossed the lane centre yet. This is deliberately stricter than old R2.
+  const cutIn=ratio>=0.62&&absOffset<=0.66;
+  return {left,right,laneW,center,ratio,offset,absOffset,centerInside,core,cutIn,eligible:core||cutIn};
 }
 function candidatesFromPredictions(predictions,t){
   const threshold=Math.max(0.18,cfg.scoreThreshold-(tracks.length?0.08:0.16)),out=[];
@@ -523,14 +532,38 @@ function displayDistanceForTrack(tr,h){
   d=Math.max(1,Math.min(250,d));return {kind:'number',text:`${d<10?d.toFixed(1):Math.round(d)} m`,numeric:d,main:d<10?d.toFixed(1):String(Math.round(d)),source};
 }
 function chooseEgoLead(h){
-  const live=tracks.filter(t=>!t.stale&&t.hits>=1&&t.ego?.eligible).map(t=>({t,d:displayDistanceForTrack(t,h).numeric??999,occ:t.ego?.ratio||0})).sort((a,b)=>a.d-b.d);
+  // TARGET SELECTION MUST BE GEOMETRIC FIRST. Distance is deliberately NOT used here.
+  // 1) vehicle rear/ground point must occupy the ego lane;
+  // 2) prefer the vehicle deepest/nearest ahead in image perspective (largest bottom-y);
+  // 3) use lateral alignment only as a tie-breaker;
+  // 4) a side-lane vehicle cannot steal LOCK merely because its estimated distance is smaller.
+  const live=tracks.filter(t=>!t.stale&&t.hits>=1).map(t=>{
+    t.ego=egoFootprint(t.box,t.by,canvas.clientWidth,canvas.clientHeight);
+    return {t,ego:t.ego,by:t.by,align:t.ego?.absOffset??99,occ:t.ego?.ratio||0};
+  }).filter(x=>x.ego?.eligible);
   if(!live.length){lockedLeadId=null;return null;}
-  const current=live.find(x=>x.t.id===lockedLeadId),best=live[0];
+
+  // Strict in-lane candidates first. Cut-in-only candidates are considered when they have
+  // genuinely occupied the ego lane. This prevents neighbouring cars/trucks from stealing LOCK.
+  const core=live.filter(x=>x.ego.core);
+  const pool=core.length?core:live;
+  pool.sort((a,b)=>{
+    const dy=b.by-a.by;
+    if(Math.abs(dy)>Math.max(5,canvas.clientHeight*0.012))return dy;
+    return a.align-b.align;
+  });
+  const best=pool[0];
+  const current=live.find(x=>x.t.id===lockedLeadId);
   if(!current){lockedLeadId=best.t.id;return best.t;}
+
+  // Keep the current target while it remains a valid ego-lane vehicle. Switch only when a
+  // different vehicle is clearly in front of it, or when a cut-in has substantially entered us.
   if(best.t.id!==current.t.id){
-    const clearCloser=best.d<current.d*0.94;
-    const cutIn=best.occ>=0.34&&best.d<current.d*1.08&&Math.abs(best.t.vx||0)>10;
-    if(clearCloser||cutIn)lockedLeadId=best.t.id;
+    const yMargin=Math.max(7,canvas.clientHeight*0.016);
+    const clearlyInFront=best.by>current.by+yMargin && best.ego.core;
+    const genuineCutIn=best.ego.cutIn&&best.occ>=0.68&&best.by>current.by-yMargin*0.35;
+    const currentWeak=!current.ego.core&&current.ego.ratio<0.58;
+    if(clearlyInFront||genuineCutIn||currentWeak)lockedLeadId=best.t.id;
   }
   return (live.find(x=>x.t.id===lockedLeadId)||best).t;
 }
@@ -553,18 +586,28 @@ function drawGuides(){
   ctx.restore();
 }
 
+function visualCopy(tr,h,now){
+  if(!tr)return null;const d=displayDistanceForTrack(tr,h);
+  return {id:tr.id,box:{...tr.box},dText:d.text,dMain:d.main,dNumeric:d.numeric,dSource:d.source||'WIDE',at:now};
+}
 function drawTrack(tr,h,w){
-  const d=displayDistanceForTrack(tr,h);ctx.save();
+  const dText=tr.dText!=null?tr.dText:displayDistanceForTrack(tr,h).text;ctx.save();
   ctx.lineWidth=3.2;ctx.strokeStyle='rgba(255,35,35,.98)';ctx.strokeRect(tr.box.x,tr.box.y,tr.box.w,tr.box.h);
-  const label=`XE TRƯỚC • ${d.text}`;ctx.font='800 15px -apple-system,sans-serif';const tw=ctx.measureText(label).width;
-  const tx=Math.max(4,Math.min(tr.box.x+tr.box.w/2-tw/2,w-tw-12)),ty=Math.max(28,tr.box.y-7);
-  ctx.fillStyle='rgba(220,0,0,.92)';ctx.fillRect(tx-5,ty-19,tw+10,23);ctx.fillStyle='#fff';ctx.fillText(label,tx,ty-2);
-  ctx.beginPath();ctx.moveTo(tr.box.x+tr.box.w/2,ty+4);ctx.lineTo(tr.box.x+tr.box.w/2,tr.box.y);ctx.stroke();ctx.restore();
+  const label=`XE TRƯỚC • ${dText}`;ctx.font='800 15px -apple-system,sans-serif';const tw=ctx.measureText(label).width;
+  const tx=Math.max(4,Math.min(tr.box.x+tr.box.w/2-tw/2,w-tw-12));
+  const boxBottom=tr.box.y+tr.box.h;let labelTop=boxBottom+12;const labelH=23;
+  const safeBottom=h-12;
+  if(labelTop+labelH>safeBottom)labelTop=Math.max(4,tr.box.y-labelH-12);
+  ctx.fillStyle='rgba(220,0,0,.92)';ctx.fillRect(tx-5,labelTop,tw+10,labelH);ctx.fillStyle='#fff';ctx.textBaseline='middle';ctx.fillText(label,tx,labelTop+labelH/2);
+  ctx.restore();
 }
 function render(predictions){
   resizeCanvas();const w=canvas.clientWidth,h=canvas.clientHeight;ctx.clearRect(0,0,w,h);drawGuides();const t=coverTransform();
-  const now=performance.now();const cands=candidatesFromPredictions(predictions,t);updateTracks(cands,now,t);const lead=chooseEgoLead(h);maybeManageTele(lead,now);updateReadout(lead,h);updateMotionReadout(lead,h);
-  if(lead)drawTrack(lead,h,w);return lead;
+  const now=performance.now();const cands=candidatesFromPredictions(predictions,t);updateTracks(cands,now,t);const lead=chooseEgoLead(h);maybeManageTele(lead,now);
+  if(lead)visualLeadHold=visualCopy(lead,h,now);
+  const held=!lead&&visualLeadHold&&now-visualLeadHold.at<VISUAL_HOLD_MS?visualLeadHold:null;
+  if(lead){updateReadout(lead,h);updateMotionReadout(lead,h);}else if(held){ui.distance.textContent=held.dMain;ui.lead.textContent='XE TRƯỚC';ui.laneMain.textContent='AUTO';ui.track.textContent=`LOCK: XE TRƯỚC • ${held.dSource}`;}else{visualLeadHold=null;updateReadout(null,h);updateMotionReadout(null,h);}
+  if(lead)drawTrack(lead,h,w);else if(held)drawTrack(held,h,w);return lead;
 }
 
 const AI_FILES={
@@ -592,7 +635,7 @@ async function startCamera(){
   try{await initModel();ui.status.textContent='Đang khóa xe trước • AUTO LANE';if(!drawRAF)drawRAF=requestAnimationFrame(loop);}catch(err){console.error(err);ui.status.textContent='AI chưa sẵn sàng';ui.fps.textContent='AI ERROR';alert(`AI chưa nạp được.\n\n${err.message||err}`);}
 }
 function stopCamera(updateUI=true){
-  running=false;aiBusy=false;if(drawRAF){cancelAnimationFrame(drawRAF);drawRAF=0;}
+  running=false;aiBusy=false;visualLeadHold=null;if(drawRAF){cancelAnimationFrame(drawRAF);drawRAF=0;}
   if(stream)stream.getTracks().forEach(t=>t.stop());stream=null;void stopTeleAssist();
   try{video.pause();}catch{}
   video.srcObject=null;video.removeAttribute('src');video.load();
@@ -608,7 +651,7 @@ ui.videoFile.addEventListener('change',async()=>{
   try{
     videoObjectUrl=URL.createObjectURL(file);video.srcObject=null;video.src=videoObjectUrl;video.loop=true;video.muted=true;video.playsInline=true;
     await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Video không trả metadata')),10000);video.onloadedmetadata=()=>{clearTimeout(timer);resolve();};video.onerror=()=>{clearTimeout(timer);reject(new Error('Không đọc được video'));};});
-    await video.play();resizeCanvas();sourceMode='video';laneState={mode:'SEARCH',confidence:0,lastRun:0,count:null,boundariesPct:null,egoLane:null,samples:[]};stopGPS();running=true;ui.start.textContent='DỪNG';ui.videoBtn.textContent='DỪNG VIDEO';lastAIEnd=0;tracks=[];lockedLeadId=null;
+    await video.play();resizeCanvas();sourceMode='video';laneState={mode:'SEARCH',confidence:0,lastRun:0,count:null,boundariesPct:null,egoLane:null,samples:[]};stopGPS();running=true;ui.start.textContent='DỪNG';ui.videoBtn.textContent='DỪNG VIDEO';lastAIEnd=0;tracks=[];lockedLeadId=null;visualLeadHold=null;
     await initModel();ui.status.textContent='VIDEO THỬ • KHÓA XE TRƯỚC + KHOẢNG CÁCH';if(!drawRAF)drawRAF=requestAnimationFrame(loop);
   }catch(err){console.error(err);ui.status.textContent='Lỗi video thử';alert(`Không mở được video thử: ${err.message||err}`);stopCamera(true);}
   finally{ui.videoFile.value='';}
