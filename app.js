@@ -22,8 +22,8 @@ const labels = {
 };
 
 const VEHICLES = new Set(['car','truck','bus','motorcycle']);
-const CFG_KEY = 'distanceadas_cfg_v11b6r2_fix1';
-const APP_VERSION = 'v1.1 beta.6R2-FIX1';
+const CFG_KEY = 'distanceadas_cfg_v11b6r2_widetele';
+const APP_VERSION = 'v1.1 beta.6R2-WIDE-TELE';
 const RED_DISTANCE_M = 100;
 const defaults = {
   cameraHeight:1.20, horizonPct:50.0, effectiveVFovDeg:42, calLocked:true, autoGeometry:true,
@@ -41,55 +41,6 @@ teleVideo.autoplay=true;teleVideo.muted=true;teleVideo.playsInline=true;
 let teleStream=null;
 let teleState={active:false,busy:false,failedUntil:0,wantSince:0,lastInfer:0,lastSeen:0,leadId:null,anchorK:null,distance:null,score:0};
 const TELE_ON_M=85, TELE_OFF_M=65, TELE_HOLD_MS=900, TELE_INFER_MS=650, TELE_STALE_MS=1800;
-
-// Depth Anything V2 Small — browser inference assist.
-// Official Metric Outdoor Small is not currently published as browser-ready ONNX.
-// This browser model provides a real AI depth signal on the locked vehicle ROI.
-const DA_MODEL_ID='onnx-community/depth-anything-v2-small-ONNX';
-const DA_INTERVAL_MS=1800;
-let daPipe=null, daLoading=false, daBusy=false, daFailedUntil=0, daLastInfer=0;
-let orientationResetBusy=false,lastViewportKey='';
-let daState={ready:false,backend:'--',distance:null,lastSeen:0,leadId:null,scale:null};
-async function ensureDepthAI(){
-  if(daPipe||daLoading||performance.now()<daFailedUntil)return !!daPipe;
-  daLoading=true;
-  try{
-    if(!globalThis.transformers?.pipeline) throw new Error('Transformers.js chưa nạp');
-    const hasWebGPU=!!navigator.gpu;
-    const opts=hasWebGPU?{device:'webgpu',dtype:'q4f16'}:{device:'wasm',dtype:'q8'};
-    daPipe=await globalThis.transformers.pipeline('depth-estimation',DA_MODEL_ID,opts);
-    daState.ready=true; daState.backend=hasWebGPU?'WEBGPU':'WASM';
-    ui.status.textContent=`AI DEPTH ${daState.backend} • WIDE LOCK`;
-    return true;
-  }catch(e){console.warn('Depth AI unavailable',e);daFailedUntil=performance.now()+30000;return false;}
-  finally{daLoading=false;}
-}
-function daMedian(vals){vals=vals.filter(Number.isFinite).sort((a,b)=>a-b);if(!vals.length)return NaN;const m=vals.length>>1;return vals.length%2?vals[m]:(vals[m-1]+vals[m])/2;}
-async function updateDepthAI(lead,now){
-  if(!lead||sourceMode==='none'||daBusy||aiBusy||teleState.busy||now-daLastInfer<DA_INTERVAL_MS)return;
-  daBusy=true;daLastInfer=now;if(!(await ensureDepthAI())){daBusy=false;return;}
-  try{
-    const src=(teleState.active&&teleVideo.readyState>=2)?teleVideo:video;if(src.readyState<2)return;
-    const sw=src.videoWidth||1280,sh=src.videoHeight||720,b=lead.box||{x:sw*.4,y:sh*.35,w:sw*.2,h:sh*.25};
-    const sx=Math.max(0,b.x-b.w*.60),sy=Math.max(0,b.y-b.h*.50),ex=Math.min(sw,b.x+b.w*1.60),ey=Math.min(sh,b.y+b.h*1.30);
-    const rw=Math.max(96,ex-sx),rh=Math.max(96,ey-sy);teleCanvas.width=224;teleCanvas.height=Math.max(144,Math.round(224*rh/rw));
-    teleCtx.drawImage(src,sx,sy,rw,rh,0,0,teleCanvas.width,teleCanvas.height);
-    const out=await daPipe(teleCanvas);
-    const tensor=out?.predicted_depth; const raw=tensor?.data||out?.depth?.data||null;if(!raw||!raw.length)return;
-    const dims=tensor?.dims||[]; const W=dims[dims.length-1]||teleCanvas.width,H=dims[dims.length-2]||teleCanvas.height,vals=[];
-    for(let y=Math.floor(H*.46);y<Math.floor(H*.82);y+=Math.max(1,Math.floor(H/22)))for(let x=Math.floor(W*.28);x<Math.floor(W*.72);x+=Math.max(1,Math.floor(W/18))){const v=Number(raw[y*W+x]);if(Number.isFinite(v)&&v>0)vals.push(v);}
-    const rel=daMedian(vals);if(!Number.isFinite(rel)||rel<=0)return;
-    // Web-ready DAV2 Small is relative-depth. We use it to stabilize frame-to-frame motion,
-    // anchored to the current metric estimate until a true Metric-Outdoor ONNX is available.
-    const anchor=Number.isFinite(lead.dFilt)?lead.dFilt:null;
-    if(daState.leadId!==lead.id||!Number.isFinite(daState.scale)){daState.leadId=lead.id;daState.scale=anchor&&anchor>2?anchor/rel:null;daState.distance=anchor;}
-    else if(anchor&&anchor>2&&anchor<80){const sc=anchor/rel;daState.scale=daState.scale*.98+sc*.02;}
-    if(Number.isFinite(daState.scale)){const d=Math.max(1,Math.min(100,rel*daState.scale));daState.distance=Number.isFinite(daState.distance)?daState.distance*.72+d*.28:d;daState.lastSeen=now;lead.aiDepthDistance=daState.distance;lead.aiDepthAt=now;}
-  }catch(e){console.warn('Depth AI frame',e);}
-  finally{daBusy=false;try{globalThis.tf?.disposeVariables?.();}catch{}}
-}
-
-const AI_METRIC_MAX_M=80;
 const teleCanvas=document.createElement('canvas');
 const teleCtx=teleCanvas.getContext('2d',{willReadFrequently:false});
 
@@ -381,20 +332,7 @@ function resizeCanvas(){
   const dpr=Math.min(window.devicePixelRatio||1,2),rect=canvas.getBoundingClientRect(),w=Math.round(rect.width*dpr),h=Math.round(rect.height*dpr);
   if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;} ctx.setTransform(dpr,0,0,dpr,0,0);
 }
-function resetForOrientation(){
-  if(orientationResetBusy)return;orientationResetBusy=true;
-  const wasRunning=running;const oldHz=cfg.aiHz;
-  ui.status.textContent='XOAY MÀN HÌNH • đang căn lại camera…';
-  tracks=[];lockedLeadId=null;lastPredictions=[];detectFrame=0;lastAIEnd=performance.now()+350;
-  laneState={mode:'SEARCH',confidence:0,lastRun:0,count:null,boundariesPct:null,egoLane:null,samples:[]};
-  resetAutoGeometry(false);
-  teleState.leadId=null;teleState.anchorK=null;teleState.distance=null;daState.leadId=null;daState.scale=null;daState.distance=null;
-  setTimeout(()=>{resizeCanvas();lastViewportKey=`${video.videoWidth}x${video.videoHeight}:${innerWidth}x${innerHeight}`;orientationResetBusy=false;if(wasRunning)ui.status.textContent='LANDSCAPE READY • đang khóa lại xe trước';},420);
-}
-function viewportChanged(){const k=`${video.videoWidth}x${video.videoHeight}:${innerWidth}x${innerHeight}`;if(lastViewportKey&&k!==lastViewportKey)resetForOrientation();else lastViewportKey=k;resizeCanvas();}
-window.addEventListener('resize',()=>setTimeout(viewportChanged,120));
-window.addEventListener('orientationchange',()=>setTimeout(resetForOrientation,180));
-if(screen.orientation?.addEventListener)screen.orientation.addEventListener('change',()=>setTimeout(resetForOrientation,180));
+window.addEventListener('resize',resizeCanvas); window.addEventListener('orientationchange',()=>setTimeout(resizeCanvas,250));
 
 function effectiveLaneInfo(){
   if(cfg.autoLane && laneState.boundariesPct && laneState.count>=3){
@@ -575,28 +513,14 @@ function updateTracks(cands,now,t){
   if(lockedLeadId!=null&&!tracks.some(t=>t.id===lockedLeadId))lockedLeadId=null;
 }
 function displayDistanceForTrack(tr,h){
-  let wide=Number.isFinite(tr.dFilt)?tr.dFilt:fusedDistanceMeasurement(tr,h);
-  if(!Number.isFinite(wide))return {kind:'unknown',text:'-- m',numeric:null,main:'--',source:'--'};
+  let wide=Number.isFinite(tr.dFilt)?tr.dFilt:fusedDistanceMeasurement(tr,h);if(!Number.isFinite(wide))return {kind:'unknown',text:'-- m',numeric:null,main:'--'};
   let d=wide,source='WIDE';
   const teleFresh=Number.isFinite(tr.teleDistance)&&performance.now()-(tr.teleAt||0)<TELE_STALE_MS;
   if(teleFresh){
-    const wt=wide>=70?0.65:(wide>=55?0.40:0.15);
-    d=wide*(1-wt)+tr.teleDistance*wt;
-    source='WIDE+TELE';
+    const wt=wide>=110?0.72:(wide>=90?0.58:(wide>=75?0.35:0));
+    if(wt>0){d=wide*(1-wt)+tr.teleDistance*wt;source='WIDE+TELE';}
   }
-  const aiFresh=Number.isFinite(tr.aiDepthDistance)&&performance.now()-(tr.aiDepthAt||0)<2800;
-  if(aiFresh){
-    const wt=d>=60?0.55:(d>=35?0.38:0.20);
-    d=d*(1-wt)+tr.aiDepthDistance*wt;
-    source=teleFresh?'WIDE+TELE+AI':'WIDE+AI';
-  }
-  // Product policy for the AI metric-depth branch: publish an exact number only up to 80 m.
-  // Above that, preserve tracking but do not invent a metric value outside the model's intended outdoor range.
-  if(d>AI_METRIC_MAX_M){
-    return {kind:'over',text:`>${AI_METRIC_MAX_M} m`,numeric:d,main:`>${AI_METRIC_MAX_M}`,source:`${source} • >80 POLICY`};
-  }
-  const shown=Math.max(0,Math.round(d));
-  return {kind:'number',text:`${shown} m`,numeric:d,main:String(shown),source};
+  d=Math.max(1,Math.min(250,d));return {kind:'number',text:`${d<10?d.toFixed(1):Math.round(d)} m`,numeric:d,main:d<10?d.toFixed(1):String(Math.round(d)),source};
 }
 function chooseEgoLead(h){
   const live=tracks.filter(t=>!t.stale&&t.hits>=1&&t.ego?.eligible).map(t=>({t,d:displayDistanceForTrack(t,h).numeric??999,occ:t.ego?.ratio||0})).sort((a,b)=>a.d-b.d);
@@ -662,7 +586,7 @@ async function initModel(){
 }
 async function startCamera(){
   if(!navigator.mediaDevices?.getUserMedia){alert('Camera web cần HTTPS hoặc localhost.');return;}stopCamera(false);ui.status.textContent='Đang mở camera…';
-  try{await attachStream(await navigator.mediaDevices.getUserMedia(cameraConstraint(null)));await discoverRearCameras();const activeId=currentVideoTrack()?.getSettings?.().deviceId||null;if(cameraProfile.wideId&&cameraProfile.wideId!==activeId){try{const old=stream;const s=await navigator.mediaDevices.getUserMedia(cameraConstraint(cameraProfile.wideId));try{old?.getTracks().forEach(t=>t.stop());}catch{}await attachStream(s);}catch(e){console.warn('AUTO CAM wide fallback',e);}}cameraProfile.current='wide';ui.status.textContent=cameraProfile.teleId?'WIDE LOCK • TELE hỗ trợ đo • 0–80m số thực':'WIDE LOCK • WIDE fallback • >80m hiển thị >80';}
+  try{await attachStream(await navigator.mediaDevices.getUserMedia(cameraConstraint(null)));await discoverRearCameras();const activeId=currentVideoTrack()?.getSettings?.().deviceId||null;if(cameraProfile.wideId&&cameraProfile.wideId!==activeId){try{const old=stream;const s=await navigator.mediaDevices.getUserMedia(cameraConstraint(cameraProfile.wideId));try{old?.getTracks().forEach(t=>t.stop());}catch{}await attachStream(s);}catch(e){console.warn('AUTO CAM wide fallback',e);}}cameraProfile.current='wide';ui.status.textContent=cameraProfile.teleId?'WIDE LOCK • TELE sẵn sàng khi xe xa':'WIDE LOCK • WIDE DISTANCE (tele không được Safari công khai)';}
   catch(err){console.error(err);ui.status.textContent='Lỗi camera';alert(`Không mở được camera: ${err.message||err}`);return;}
   sourceMode='camera';running=true;laneState={mode:'SEARCH',confidence:0,lastRun:0,count:null,boundariesPct:null,egoLane:null,samples:[]};startGPS();ui.start.textContent='DỪNG';ui.videoBtn.textContent='VIDEO THỬ';lastAIEnd=0;if(cfg.autoGeometry)resetAutoGeometry(true);
   try{await initModel();ui.status.textContent='Đang khóa xe trước • AUTO LANE';if(!drawRAF)drawRAF=requestAnimationFrame(loop);}catch(err){console.error(err);ui.status.textContent='AI chưa sẵn sàng';ui.fps.textContent='AI ERROR';alert(`AI chưa nạp được.\n\n${err.message||err}`);}
@@ -712,7 +636,7 @@ async function detectAdaptive(){
 async function loop(ts){
   maybeAutoGeometry(ts);maybeAutoLane(ts);if(Math.round(ts)%900<20)updateQuality();
   drawRAF=0;if(!running)return;const interval=1000/Math.max(1,cfg.aiHz);
-  if(!orientationResetBusy&&!aiBusy&&!daBusy&&model&&video.readyState>=2&&ts-lastAIEnd>=interval){aiBusy=true;const started=performance.now();let lead=null;try{const preds=await detectAdaptive();lastPredictions=preds;lead=render(preds);if(lead&&teleState.active&&!daBusy)await updateTeleDistance(lead,performance.now());const elapsed=performance.now()-started,instant=1000/Math.max(elapsed,1);fpsSmooth=fpsSmooth?fpsSmooth*.78+instant*.22:instant;ui.fps.textContent=`AI ${fpsSmooth.toFixed(1)} FPS • ${detectMode}${teleState.active?' • TELE':''}`;}catch(err){console.error(err);ui.status.textContent='AI lỗi 1 frame';}finally{lastAIEnd=performance.now();aiBusy=false;}if(lead&&!teleState.busy&&performance.now()-daLastInfer>=DA_INTERVAL_MS)setTimeout(()=>{if(!aiBusy&&!orientationResetBusy)void updateDepthAI(lead,performance.now());},80);}
+  if(!aiBusy&&model&&video.readyState>=2&&ts-lastAIEnd>=interval){aiBusy=true;const started=performance.now();try{const preds=await detectAdaptive();lastPredictions=preds;const lead=render(preds);if(lead&&teleState.active)await updateTeleDistance(lead,performance.now());const elapsed=performance.now()-started,instant=1000/Math.max(elapsed,1);fpsSmooth=fpsSmooth?fpsSmooth*.78+instant*.22:instant;ui.fps.textContent=`AI ${fpsSmooth.toFixed(1)} FPS • ${detectMode}${teleState.active?' • TELE':''}`;}catch(err){console.error(err);ui.status.textContent='AI lỗi 1 frame';}finally{lastAIEnd=performance.now();aiBusy=false;}}
   if(running)drawRAF=requestAnimationFrame(loop);
 }
 
