@@ -1,18 +1,12 @@
-DistanceADAS Web v1.1 beta.6R1
-CENTER-LANE LOCK + ADVANCED DISTANCE
+# DistanceADAS v1.1 beta.6R2-DA80-AI
 
-Nền mã: v1.1 beta.6, giữ nguyên detector COCO-SSD lite_mobilenet_v2 và pipeline FULL / ZOOM-L / ZOOM-R vốn chạy nhanh trên iPhone.
+- Giữ nền ổn định beta.6/R1: WIDE khóa duy nhất xe cùng làn.
+- TELE chỉ hỗ trợ đo xa khi Safari cho phép.
+- Thêm Depth Anything V2 Small chạy trực tiếp trong browser bằng Transformers.js/ONNX, chỉ inference ROI của xe đã khóa để giảm tải.
+- WebGPU nếu có; nếu không có thì WASM.
+- 0–80 m hiển thị số; trên 80 m hiển thị `>80 m`.
+- AI depth chạy thưa (~1.2 s/lần) để giảm nhiệt.
 
-Mục tiêu bản R1:
-- Chỉ vẽ 1 box đỏ: xe thực sự đang ở phía trước trong hành lang làn của camera.
-- Xe xa hay gần đều được xét theo hình học làn tại đúng cao độ của xe.
-- Khi xe bên cạnh chèn vào làn và trở thành vật cản gần hơn, khóa chuyển ngay sang xe chèn.
-- Không dùng ID/lane label trên box; nhãn chỉ là XE TRƯỚC • xx m.
-- Tracking giữ identity bằng IoU + tâm dự đoán + kích thước + lớp xe.
-- Khoảng cách dùng road-plane calibration làm nguồn chính, có kiểm tra chéo bằng kích thước phương tiện và bộ lọc alpha-beta theo thời gian để giảm nhảy số.
-- AUTO GEOMETRY được phép chạy cả camera thật và VIDEO THỬ để bám đường chân trời tốt hơn.
+Lưu ý: checkpoint chính thức Depth Anything V2 Metric Outdoor Small hiện là Transformers/Safetensors và chưa có ONNX browser-ready chính thức. Bản này dùng DAV2 Small ONNX làm tín hiệu AI-depth thật trong Safari và neo metric vào estimate hiện tại; không giả mạo là checkpoint Metric Outdoor trực tiếp. Khi có/convert được Metric Outdoor ONNX, chỉ thay model, giữ nguyên pipeline WIDE→TELE→AI.
 
-Lưu ý quan trọng:
-Camera đơn mắt không thể bảo đảm khoảng cách tuyệt đối như radar/LiDAR. VIDEO THỬ đặc biệt có thể sai số nếu chiều cao camera/FOV của video nguồn khác cấu hình. Để hiệu chỉnh số mét thực tế, nên kiểm tra tại các mốc 20/40/60/100 m với đúng vị trí gá camera.
-
-Research prototype only. Không dùng như hệ thống phanh/cảnh báo va chạm được chứng nhận.
+Lần đầu cần Internet để tải Transformers.js/model; trình duyệt sẽ cache model.
