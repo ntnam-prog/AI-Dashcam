@@ -7,10 +7,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="DistanceADAS">
-  <title>DistanceADAS Web v1.1 beta.6R3</title>
+  <title>DistanceADAS Web v1.1 beta.6R1</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="style.css?v=116r3">
+  <link rel="stylesheet" href="style.css?v=116r1">
 </head>
 <body>
   <main id="app">
@@ -20,7 +20,7 @@
     <div id="topbar">
       <div>
         <div id="status">Sẵn sàng</div>
-        <div id="substatus">v1.1 beta.6R3 • FAR-WATCH 30% + YOLO NANO SEG + ADVANCED DISTANCE</div>
+        <div id="substatus">v1.1 beta.6R1 • CENTER-LANE LOCK + ADVANCED DISTANCE</div>
       </div>
       <div class="rightStats">
         <div id="fps">AI -- FPS</div>
@@ -63,8 +63,8 @@
       <div class="panel-card">
         <div class="panel-head">
           <div>
-            <div class="panel-title">DistanceADAS v1.1 beta.6R3</div>
-            <div class="panel-sub">Giữ lõi beta.6; thêm FAR WATCH 30% vùng trung tâm để bắt xe xa và YOLO11n-seg chạy nền cho xe đủ lớn.</div>
+            <div class="panel-title">DistanceADAS v1.1 beta.6R1</div>
+            <div class="panel-sub">Giữ lõi beta.6: ưu tiên khóa đúng xe phía trước trong làn camera và đo khoảng cách ổn định.</div>
           </div>
           <button id="closePanelBtn" class="iconBtn">✕</button>
         </div>
@@ -161,7 +161,7 @@
         </label>
 
         <div class="help">
-          Beta.6R3 giữ nguyên lõi nhận xe nhanh của beta.6; FAR WATCH chỉ quét 30% vùng trung tâm/tâm làn để ưu tiên xe xa trên 100 m; YOLO11n-seg được nạp nền khi có mạng và tự fallback về detector beta.6 nếu không nạp được; mục tiêu hiển thị duy nhất là xe phía trước trong làn camera. Khi xe khác chèn vào hành lang làn và gần hơn, khóa chuyển sang xe chèn. Xe được nhận vẫn hiện khoảng cách ngay cả khi AUTO LANE chưa khóa; khi đó nhãn là L?. VIDEO THỬ không dùng GPS/tốc độ thật. Nền AUTO GEOMETRY: camera thật tự tìm điểm tụ/đường chân trời qua nhiều frame, ổn định thì AUTO LOCK và tạo lại lưới khoảng cách theo chiều cao camera; VIDEO THỬ vẫn chạy riêng để kiểm tra AI/tracking; đồng thời vẫn ưu tiên bắt đuôi xe, kể cả xe nhỏ ở xa và cảnh ánh sáng yếu. AI luân phiên toàn cảnh với hai vùng phóng đại xa trái/phải; vùng tối được tăng sáng và tương phản. Multi-tracker giữ ID khi xe chạy hoặc đổi làn. Đường đỏ là mốc 100 m: trên đường đỏ hiển thị &gt;100 m, sát đường đỏ ~100 m, dưới đường đỏ hiển thị số mét. Model AI hiện tại vẫn dùng bộ local đã cài sẵn để bản này chạy ngay; kiến trúc detector đã tách để có thể thay model chuyên đuôi xe ở bước sau mà không đổi phần tracking/làn/khoảng cách.
+          Beta.6R1 giữ nguyên lõi nhận xe nhanh của beta.6; mục tiêu hiển thị duy nhất là xe phía trước trong làn camera. Khi xe khác chèn vào hành lang làn và gần hơn, khóa chuyển sang xe chèn. Xe được nhận vẫn hiện khoảng cách ngay cả khi AUTO LANE chưa khóa; khi đó nhãn là L?. VIDEO THỬ không dùng GPS/tốc độ thật. Nền AUTO GEOMETRY: camera thật tự tìm điểm tụ/đường chân trời qua nhiều frame, ổn định thì AUTO LOCK và tạo lại lưới khoảng cách theo chiều cao camera; VIDEO THỬ vẫn chạy riêng để kiểm tra AI/tracking; đồng thời vẫn ưu tiên bắt đuôi xe, kể cả xe nhỏ ở xa và cảnh ánh sáng yếu. AI luân phiên toàn cảnh với hai vùng phóng đại xa trái/phải; vùng tối được tăng sáng và tương phản. Multi-tracker giữ ID khi xe chạy hoặc đổi làn. Đường đỏ là mốc 100 m: trên đường đỏ hiển thị &gt;100 m, sát đường đỏ ~100 m, dưới đường đỏ hiển thị số mét. Model AI hiện tại vẫn dùng bộ local đã cài sẵn để bản này chạy ngay; kiến trúc detector đã tách để có thể thay model chuyên đuôi xe ở bước sau mà không đổi phần tracking/làn/khoảng cách.
         </div>
 
         <div class="panel-actions">
@@ -171,6 +171,6 @@
       </div>
     </section>
   </main>
-  <script src="app.js?v=116r3"></script>
+  <script src="app.js?v=116r1"></script>
 </body>
 </html>
