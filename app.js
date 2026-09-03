@@ -23,7 +23,7 @@ const labels = {
 
 const VEHICLES = new Set(['car','truck','bus','motorcycle']);
 const CFG_KEY = 'distanceadas_cfg_v11b6r2_widetele';
-const APP_VERSION = 'v1.1 beta.6R2-WIDE-TELE';
+const APP_VERSION = 'v1.1 beta.6R2-LANDSCAPE-LABELFIX';
 const RED_DISTANCE_M = 100;
 const defaults = {
   cameraHeight:1.20, horizonPct:50.0, effectiveVFovDeg:42, calLocked:true, autoGeometry:true,
@@ -170,6 +170,7 @@ async function updateTeleDistance(lead,now){
   }catch(e){console.warn('TELE distance frame',e);}
 }
 let lastAIEnd=0, fpsSmooth=0, tracks=[], nextTrackId=1, lastPredictions=[], lockedLeadId=null;
+let inferencePauseUntil=0, orientationRefreshTimer=0, lastViewportSignature='';
 let detectFrame=0, sceneLuma=1, detectMode='FULL';
 let gpsWatchId=null, egoSpeedKmh=null, egoSpeedSmooth=null, lastGpsAt=0;
 
@@ -329,10 +330,47 @@ function updateMotionReadout(lead,h){
   if(sourceMode==='camera'&&egoSpeedSmooth!=null){const v=Math.max(0,egoSpeedSmooth-c);ui.leadSpeed.textContent=`XE TRƯỚC: ~${Math.round(v)} km/h`;}else ui.leadSpeed.textContent='XE TRƯỚC: -- km/h';
 }
 function resizeCanvas(){
-  const dpr=Math.min(window.devicePixelRatio||1,2),rect=canvas.getBoundingClientRect(),w=Math.round(rect.width*dpr),h=Math.round(rect.height*dpr);
+  const dpr=Math.min(window.devicePixelRatio||1,2),rect=canvas.getBoundingClientRect(),w=Math.max(1,Math.round(rect.width*dpr)),h=Math.max(1,Math.round(rect.height*dpr));
   if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;} ctx.setTransform(dpr,0,0,dpr,0,0);
 }
-window.addEventListener('resize',resizeCanvas); window.addEventListener('orientationchange',()=>setTimeout(resizeCanvas,250));
+function viewportSignature(){
+  const vv=window.visualViewport;
+  const w=Math.round(vv?.width||window.innerWidth||0),h=Math.round(vv?.height||window.innerHeight||0);
+  const o=(screen.orientation&&screen.orientation.type)||((w>=h)?'landscape':'portrait');
+  return `${w}x${h}:${o}`;
+}
+function resetTrackingForViewChange(){
+  tracks=[];lockedLeadId=null;lastPredictions=[];nextTrackId=1;
+  laneState={mode:'SEARCH',confidence:0,lastRun:0,count:null,boundariesPct:null,egoLane:null,samples:[]};
+  if(cfg.autoGeometry) resetAutoGeometry(false);
+  void stopTeleAssist();
+  updateReadout(null,canvas.clientHeight);
+}
+function settleAfterViewChange(){
+  resizeCanvas();
+  if(video.readyState>=2){try{video.play();}catch{}}
+  const sig=viewportSignature();
+  if(sig===lastViewportSignature&&performance.now()>inferencePauseUntil-250)return;
+  lastViewportSignature=sig;
+  inferencePauseUntil=performance.now()+900;
+  resetTrackingForViewChange();
+  ui.status.textContent='Đang hiệu chỉnh sau khi xoay màn hình…';
+  [80,260,650].forEach((ms,i)=>setTimeout(()=>{
+    resizeCanvas();
+    if(i===2&&running){
+      if(cfg.autoGeometry) resetAutoGeometry(false);
+      ui.status.textContent=sourceMode==='camera'?'WIDE LOCK • AUTO LANE sau xoay':'VIDEO THỬ • khóa lại sau xoay';
+    }
+  },ms));
+}
+function scheduleViewRefresh(){
+  clearTimeout(orientationRefreshTimer);
+  orientationRefreshTimer=setTimeout(settleAfterViewChange,120);
+}
+lastViewportSignature=viewportSignature();
+window.addEventListener('resize',scheduleViewRefresh,{passive:true});
+window.addEventListener('orientationchange',scheduleViewRefresh,{passive:true});
+window.visualViewport?.addEventListener('resize',scheduleViewRefresh,{passive:true});
 
 function effectiveLaneInfo(){
   if(cfg.autoLane && laneState.boundariesPct && laneState.count>=3){
@@ -557,9 +595,19 @@ function drawTrack(tr,h,w){
   const d=displayDistanceForTrack(tr,h);ctx.save();
   ctx.lineWidth=3.2;ctx.strokeStyle='rgba(255,35,35,.98)';ctx.strokeRect(tr.box.x,tr.box.y,tr.box.w,tr.box.h);
   const label=`XE TRƯỚC • ${d.text}`;ctx.font='800 15px -apple-system,sans-serif';const tw=ctx.measureText(label).width;
-  const tx=Math.max(4,Math.min(tr.box.x+tr.box.w/2-tw/2,w-tw-12)),ty=Math.max(28,tr.box.y-7);
-  ctx.fillStyle='rgba(220,0,0,.92)';ctx.fillRect(tx-5,ty-19,tw+10,23);ctx.fillStyle='#fff';ctx.fillText(label,tx,ty-2);
-  ctx.beginPath();ctx.moveTo(tr.box.x+tr.box.w/2,ty+4);ctx.lineTo(tr.box.x+tr.box.w/2,tr.box.y);ctx.stroke();ctx.restore();
+
+  // Ưu tiên nhãn nằm trên mặt đường, ngay dưới đáy xe 12 px.
+  const gap=12, labelH=23, padX=5;
+  let tx=Math.max(4,Math.min(tr.box.x+tr.box.w/2-tw/2,w-tw-12));
+  let top=tr.box.y+tr.box.h+gap;
+
+  // Giữ nhãn không đè lên vùng nút điều khiển phía dưới. Nếu thiếu chỗ, tự chuyển lên trên box.
+  const safeBottom=Math.max(42,h-82);
+  if(top+labelH>safeBottom) top=Math.max(4,tr.box.y-gap-labelH);
+
+  ctx.fillStyle='rgba(220,0,0,.92)';ctx.fillRect(tx-padX,top,tw+padX*2,labelH);
+  ctx.fillStyle='#fff';ctx.textBaseline='middle';ctx.fillText(label,tx,top+labelH/2);
+  ctx.textBaseline='alphabetic';ctx.restore();
 }
 function render(predictions){
   resizeCanvas();const w=canvas.clientWidth,h=canvas.clientHeight;ctx.clearRect(0,0,w,h);drawGuides();const t=coverTransform();
@@ -588,7 +636,7 @@ async function startCamera(){
   if(!navigator.mediaDevices?.getUserMedia){alert('Camera web cần HTTPS hoặc localhost.');return;}stopCamera(false);ui.status.textContent='Đang mở camera…';
   try{await attachStream(await navigator.mediaDevices.getUserMedia(cameraConstraint(null)));await discoverRearCameras();const activeId=currentVideoTrack()?.getSettings?.().deviceId||null;if(cameraProfile.wideId&&cameraProfile.wideId!==activeId){try{const old=stream;const s=await navigator.mediaDevices.getUserMedia(cameraConstraint(cameraProfile.wideId));try{old?.getTracks().forEach(t=>t.stop());}catch{}await attachStream(s);}catch(e){console.warn('AUTO CAM wide fallback',e);}}cameraProfile.current='wide';ui.status.textContent=cameraProfile.teleId?'WIDE LOCK • TELE sẵn sàng khi xe xa':'WIDE LOCK • WIDE DISTANCE (tele không được Safari công khai)';}
   catch(err){console.error(err);ui.status.textContent='Lỗi camera';alert(`Không mở được camera: ${err.message||err}`);return;}
-  sourceMode='camera';running=true;laneState={mode:'SEARCH',confidence:0,lastRun:0,count:null,boundariesPct:null,egoLane:null,samples:[]};startGPS();ui.start.textContent='DỪNG';ui.videoBtn.textContent='VIDEO THỬ';lastAIEnd=0;if(cfg.autoGeometry)resetAutoGeometry(true);
+  sourceMode='camera';running=true;lastViewportSignature=viewportSignature();inferencePauseUntil=performance.now()+250;laneState={mode:'SEARCH',confidence:0,lastRun:0,count:null,boundariesPct:null,egoLane:null,samples:[]};startGPS();ui.start.textContent='DỪNG';ui.videoBtn.textContent='VIDEO THỬ';lastAIEnd=0;if(cfg.autoGeometry)resetAutoGeometry(true);
   try{await initModel();ui.status.textContent='Đang khóa xe trước • AUTO LANE';if(!drawRAF)drawRAF=requestAnimationFrame(loop);}catch(err){console.error(err);ui.status.textContent='AI chưa sẵn sàng';ui.fps.textContent='AI ERROR';alert(`AI chưa nạp được.\n\n${err.message||err}`);}
 }
 function stopCamera(updateUI=true){
@@ -608,7 +656,7 @@ ui.videoFile.addEventListener('change',async()=>{
   try{
     videoObjectUrl=URL.createObjectURL(file);video.srcObject=null;video.src=videoObjectUrl;video.loop=true;video.muted=true;video.playsInline=true;
     await new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(new Error('Video không trả metadata')),10000);video.onloadedmetadata=()=>{clearTimeout(timer);resolve();};video.onerror=()=>{clearTimeout(timer);reject(new Error('Không đọc được video'));};});
-    await video.play();resizeCanvas();sourceMode='video';laneState={mode:'SEARCH',confidence:0,lastRun:0,count:null,boundariesPct:null,egoLane:null,samples:[]};stopGPS();running=true;ui.start.textContent='DỪNG';ui.videoBtn.textContent='DỪNG VIDEO';lastAIEnd=0;tracks=[];lockedLeadId=null;
+    await video.play();resizeCanvas();sourceMode='video';lastViewportSignature=viewportSignature();inferencePauseUntil=performance.now()+250;laneState={mode:'SEARCH',confidence:0,lastRun:0,count:null,boundariesPct:null,egoLane:null,samples:[]};stopGPS();running=true;ui.start.textContent='DỪNG';ui.videoBtn.textContent='DỪNG VIDEO';lastAIEnd=0;tracks=[];lockedLeadId=null;
     await initModel();ui.status.textContent='VIDEO THỬ • KHÓA XE TRƯỚC + KHOẢNG CÁCH';if(!drawRAF)drawRAF=requestAnimationFrame(loop);
   }catch(err){console.error(err);ui.status.textContent='Lỗi video thử';alert(`Không mở được video thử: ${err.message||err}`);stopCamera(true);}
   finally{ui.videoFile.value='';}
@@ -634,8 +682,10 @@ async function detectAdaptive(){
   const side=phase===2?'L':'R',r=buildFarROI(side),min=r.dark?0.14:0.17,preds=await model.detect(roiCanvas,14,min);detectMode=`ZOOM-${side}${r.dark?'+DARK':''}`;return mapPreds(preds,r);
 }
 async function loop(ts){
+  drawRAF=0;if(!running)return;
+  if(ts<inferencePauseUntil){resizeCanvas();if(running)drawRAF=requestAnimationFrame(loop);return;}
   maybeAutoGeometry(ts);maybeAutoLane(ts);if(Math.round(ts)%900<20)updateQuality();
-  drawRAF=0;if(!running)return;const interval=1000/Math.max(1,cfg.aiHz);
+  const interval=1000/Math.max(1,cfg.aiHz);
   if(!aiBusy&&model&&video.readyState>=2&&ts-lastAIEnd>=interval){aiBusy=true;const started=performance.now();try{const preds=await detectAdaptive();lastPredictions=preds;const lead=render(preds);if(lead&&teleState.active)await updateTeleDistance(lead,performance.now());const elapsed=performance.now()-started,instant=1000/Math.max(elapsed,1);fpsSmooth=fpsSmooth?fpsSmooth*.78+instant*.22:instant;ui.fps.textContent=`AI ${fpsSmooth.toFixed(1)} FPS • ${detectMode}${teleState.active?' • TELE':''}`;}catch(err){console.error(err);ui.status.textContent='AI lỗi 1 frame';}finally{lastAIEnd=performance.now();aiBusy=false;}}
   if(running)drawRAF=requestAnimationFrame(loop);
 }
