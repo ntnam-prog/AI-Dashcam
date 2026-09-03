@@ -22,8 +22,8 @@ const labels = {
 };
 
 const VEHICLES = new Set(['car','truck','bus','motorcycle']);
-const CFG_KEY = 'distanceadas_cfg_v11b6r2_da80_ai';
-const APP_VERSION = 'v1.1 beta.6R2-DA80-AI';
+const CFG_KEY = 'distanceadas_cfg_v11b6r2_fix1';
+const APP_VERSION = 'v1.1 beta.6R2-FIX1';
 const RED_DISTANCE_M = 100;
 const defaults = {
   cameraHeight:1.20, horizonPct:50.0, effectiveVFovDeg:42, calLocked:true, autoGeometry:true,
@@ -46,8 +46,9 @@ const TELE_ON_M=85, TELE_OFF_M=65, TELE_HOLD_MS=900, TELE_INFER_MS=650, TELE_STA
 // Official Metric Outdoor Small is not currently published as browser-ready ONNX.
 // This browser model provides a real AI depth signal on the locked vehicle ROI.
 const DA_MODEL_ID='onnx-community/depth-anything-v2-small-ONNX';
-const DA_INTERVAL_MS=1200;
-let daPipe=null, daLoading=false, daFailedUntil=0, daLastInfer=0;
+const DA_INTERVAL_MS=1800;
+let daPipe=null, daLoading=false, daBusy=false, daFailedUntil=0, daLastInfer=0;
+let orientationResetBusy=false,lastViewportKey='';
 let daState={ready:false,backend:'--',distance:null,lastSeen:0,leadId:null,scale:null};
 async function ensureDepthAI(){
   if(daPipe||daLoading||performance.now()<daFailedUntil)return !!daPipe;
@@ -65,13 +66,13 @@ async function ensureDepthAI(){
 }
 function daMedian(vals){vals=vals.filter(Number.isFinite).sort((a,b)=>a-b);if(!vals.length)return NaN;const m=vals.length>>1;return vals.length%2?vals[m]:(vals[m-1]+vals[m])/2;}
 async function updateDepthAI(lead,now){
-  if(!lead||sourceMode==='none'||now-daLastInfer<DA_INTERVAL_MS)return;
-  daLastInfer=now;if(!(await ensureDepthAI()))return;
+  if(!lead||sourceMode==='none'||daBusy||aiBusy||teleState.busy||now-daLastInfer<DA_INTERVAL_MS)return;
+  daBusy=true;daLastInfer=now;if(!(await ensureDepthAI())){daBusy=false;return;}
   try{
     const src=(teleState.active&&teleVideo.readyState>=2)?teleVideo:video;if(src.readyState<2)return;
     const sw=src.videoWidth||1280,sh=src.videoHeight||720,b=lead.box||{x:sw*.4,y:sh*.35,w:sw*.2,h:sh*.25};
     const sx=Math.max(0,b.x-b.w*.60),sy=Math.max(0,b.y-b.h*.50),ex=Math.min(sw,b.x+b.w*1.60),ey=Math.min(sh,b.y+b.h*1.30);
-    const rw=Math.max(96,ex-sx),rh=Math.max(96,ey-sy);teleCanvas.width=280;teleCanvas.height=Math.max(168,Math.round(280*rh/rw));
+    const rw=Math.max(96,ex-sx),rh=Math.max(96,ey-sy);teleCanvas.width=224;teleCanvas.height=Math.max(144,Math.round(224*rh/rw));
     teleCtx.drawImage(src,sx,sy,rw,rh,0,0,teleCanvas.width,teleCanvas.height);
     const out=await daPipe(teleCanvas);
     const tensor=out?.predicted_depth; const raw=tensor?.data||out?.depth?.data||null;if(!raw||!raw.length)return;
@@ -85,6 +86,7 @@ async function updateDepthAI(lead,now){
     else if(anchor&&anchor>2&&anchor<80){const sc=anchor/rel;daState.scale=daState.scale*.98+sc*.02;}
     if(Number.isFinite(daState.scale)){const d=Math.max(1,Math.min(100,rel*daState.scale));daState.distance=Number.isFinite(daState.distance)?daState.distance*.72+d*.28:d;daState.lastSeen=now;lead.aiDepthDistance=daState.distance;lead.aiDepthAt=now;}
   }catch(e){console.warn('Depth AI frame',e);}
+  finally{daBusy=false;try{globalThis.tf?.disposeVariables?.();}catch{}}
 }
 
 const AI_METRIC_MAX_M=80;
@@ -379,7 +381,20 @@ function resizeCanvas(){
   const dpr=Math.min(window.devicePixelRatio||1,2),rect=canvas.getBoundingClientRect(),w=Math.round(rect.width*dpr),h=Math.round(rect.height*dpr);
   if(canvas.width!==w||canvas.height!==h){canvas.width=w;canvas.height=h;} ctx.setTransform(dpr,0,0,dpr,0,0);
 }
-window.addEventListener('resize',resizeCanvas); window.addEventListener('orientationchange',()=>setTimeout(resizeCanvas,250));
+function resetForOrientation(){
+  if(orientationResetBusy)return;orientationResetBusy=true;
+  const wasRunning=running;const oldHz=cfg.aiHz;
+  ui.status.textContent='XOAY MÀN HÌNH • đang căn lại camera…';
+  tracks=[];lockedLeadId=null;lastPredictions=[];detectFrame=0;lastAIEnd=performance.now()+350;
+  laneState={mode:'SEARCH',confidence:0,lastRun:0,count:null,boundariesPct:null,egoLane:null,samples:[]};
+  resetAutoGeometry(false);
+  teleState.leadId=null;teleState.anchorK=null;teleState.distance=null;daState.leadId=null;daState.scale=null;daState.distance=null;
+  setTimeout(()=>{resizeCanvas();lastViewportKey=`${video.videoWidth}x${video.videoHeight}:${innerWidth}x${innerHeight}`;orientationResetBusy=false;if(wasRunning)ui.status.textContent='LANDSCAPE READY • đang khóa lại xe trước';},420);
+}
+function viewportChanged(){const k=`${video.videoWidth}x${video.videoHeight}:${innerWidth}x${innerHeight}`;if(lastViewportKey&&k!==lastViewportKey)resetForOrientation();else lastViewportKey=k;resizeCanvas();}
+window.addEventListener('resize',()=>setTimeout(viewportChanged,120));
+window.addEventListener('orientationchange',()=>setTimeout(resetForOrientation,180));
+if(screen.orientation?.addEventListener)screen.orientation.addEventListener('change',()=>setTimeout(resetForOrientation,180));
 
 function effectiveLaneInfo(){
   if(cfg.autoLane && laneState.boundariesPct && laneState.count>=3){
@@ -697,7 +712,7 @@ async function detectAdaptive(){
 async function loop(ts){
   maybeAutoGeometry(ts);maybeAutoLane(ts);if(Math.round(ts)%900<20)updateQuality();
   drawRAF=0;if(!running)return;const interval=1000/Math.max(1,cfg.aiHz);
-  if(!aiBusy&&model&&video.readyState>=2&&ts-lastAIEnd>=interval){aiBusy=true;const started=performance.now();try{const preds=await detectAdaptive();lastPredictions=preds;const lead=render(preds);if(lead&&teleState.active)await updateTeleDistance(lead,performance.now());if(lead)await updateDepthAI(lead,performance.now());const elapsed=performance.now()-started,instant=1000/Math.max(elapsed,1);fpsSmooth=fpsSmooth?fpsSmooth*.78+instant*.22:instant;ui.fps.textContent=`AI ${fpsSmooth.toFixed(1)} FPS • ${detectMode}${teleState.active?' • TELE':''}`;}catch(err){console.error(err);ui.status.textContent='AI lỗi 1 frame';}finally{lastAIEnd=performance.now();aiBusy=false;}}
+  if(!orientationResetBusy&&!aiBusy&&!daBusy&&model&&video.readyState>=2&&ts-lastAIEnd>=interval){aiBusy=true;const started=performance.now();let lead=null;try{const preds=await detectAdaptive();lastPredictions=preds;lead=render(preds);if(lead&&teleState.active&&!daBusy)await updateTeleDistance(lead,performance.now());const elapsed=performance.now()-started,instant=1000/Math.max(elapsed,1);fpsSmooth=fpsSmooth?fpsSmooth*.78+instant*.22:instant;ui.fps.textContent=`AI ${fpsSmooth.toFixed(1)} FPS • ${detectMode}${teleState.active?' • TELE':''}`;}catch(err){console.error(err);ui.status.textContent='AI lỗi 1 frame';}finally{lastAIEnd=performance.now();aiBusy=false;}if(lead&&!teleState.busy&&performance.now()-daLastInfer>=DA_INTERVAL_MS)setTimeout(()=>{if(!aiBusy&&!orientationResetBusy)void updateDepthAI(lead,performance.now());},80);}
   if(running)drawRAF=requestAnimationFrame(loop);
 }
 

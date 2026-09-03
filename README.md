@@ -1,12 +1,11 @@
-# DistanceADAS v1.1 beta.6R2-DA80-AI
+# DistanceADAS v1.1 beta.6R2-FIX1
 
-- Giữ nền ổn định beta.6/R1: WIDE khóa duy nhất xe cùng làn.
-- TELE chỉ hỗ trợ đo xa khi Safari cho phép.
-- Thêm Depth Anything V2 Small chạy trực tiếp trong browser bằng Transformers.js/ONNX, chỉ inference ROI của xe đã khóa để giảm tải.
-- WebGPU nếu có; nếu không có thì WASM.
-- 0–80 m hiển thị số; trên 80 m hiển thị `>80 m`.
-- AI depth chạy thưa (~1.2 s/lần) để giảm nhiệt.
+Nền: v1.1 beta.6/R1. Bản sửa tập trung hai lỗi trên Safari/iPhone:
 
-Lưu ý: checkpoint chính thức Depth Anything V2 Metric Outdoor Small hiện là Transformers/Safetensors và chưa có ONNX browser-ready chính thức. Bản này dùng DAV2 Small ONNX làm tín hiệu AI-depth thật trong Safari và neo metric vào estimate hiện tại; không giả mạo là checkpoint Metric Outdoor trực tiếp. Khi có/convert được Metric Outdoor ONNX, chỉ thay model, giữ nguyên pipeline WIDE→TELE→AI.
+- LANDSCAPE SAFE: khi xoay màn hình, tạm ngắt inference ngắn, đọc lại viewport/video, xóa track cũ, reset AUTO LANE/AUTO GEOMETRY rồi khóa lại xe trước.
+- MEMORY SAFE AI DEPTH: COCO detection, TELE assist và Depth Anything không inference chồng nhau; AI depth chạy thưa hơn và ROI giảm xuống 224 px để giảm peak memory.
+- WIDE vẫn quyết định duy nhất xe cùng làn; TELE/AI depth chỉ hỗ trợ khoảng cách.
+- 0–80 m hiển thị số; >80 m hiển thị >80 m.
+- Nếu TELE không mở được, tự fallback WIDE.
 
-Lần đầu cần Internet để tải Transformers.js/model; trình duyệt sẽ cache model.
+Đây vẫn là prototype nghiên cứu camera-only, không phải hệ thống ADAS được chứng nhận.
