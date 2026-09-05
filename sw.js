@@ -1,5 +1,31 @@
-const CACHE = 'aidascam-egolock-caldist-weblite-v2';
-const APP=['./','./index.html','./style.css?v=116r2-caldist3lane1','./app.js?v=116r2-caldist3lane1','./manifest.webmanifest','./icons/icon-192.png','./icons/icon-512.png'];
-self.addEventListener('install',e=>{self.skipWaiting();e.waitUntil(caches.open(CACHE).then(c=>c.addAll(APP)));});
-self.addEventListener('activate',e=>e.waitUntil(Promise.all([self.clients.claim(),caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))))])));
-self.addEventListener('fetch',e=>{const r=e.request;if(r.method!=='GET')return;if(new URL(r.url).origin===self.location.origin){e.respondWith(fetch(r).then(res=>{const cp=res.clone();caches.open(CACHE).then(c=>c.put(r,cp));return res;}).catch(()=>caches.match(r)));return;}e.respondWith(caches.match(r).then(hit=>hit||fetch(r)));});
+const CACHE = 'aidascam-weblite3-v1';
+const APP = [
+  './index.html?v=weblite3',
+  './style.css?v=weblite3',
+  './app.js?v=weblite3',
+  './manifest.webmanifest?v=weblite3',
+  './icons/icon-192.png',
+  './icons/icon-512.png'
+];
+self.addEventListener('install', event => {
+  self.skipWaiting();
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(APP)));
+});
+self.addEventListener('activate', event => {
+  event.waitUntil(Promise.all([
+    self.clients.claim(),
+    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+  ]));
+});
+self.addEventListener('fetch', event => {
+  const req = event.request;
+  if (req.method !== 'GET') return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+  event.respondWith(
+    fetch(req, {cache:'no-store'}).then(res => {
+      if (res && res.ok) caches.open(CACHE).then(cache => cache.put(req, res.clone()));
+      return res;
+    }).catch(() => caches.match(req).then(hit => hit || caches.match('./index.html?v=weblite3')))
+  );
+});

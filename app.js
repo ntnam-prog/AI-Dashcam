@@ -22,9 +22,9 @@ const labels = {
 };
 
 const VEHICLES = new Set(['car','truck','bus','motorcycle']);
-const CFG_KEY = 'distanceadas_cfg_v11b6r2_egolock_caldist_weblite';
-const PROFILE_KEY = 'distanceadas_camera_profiles_v1';
-const APP_VERSION = 'v1.1 beta.6R2-EGOLOCK-CALDIST-WEB-LITE-FIXCACHE';
+const CFG_KEY = 'aidascam_cfg_weblite3';
+const PROFILE_KEY = 'aidascam_camera_profiles_v1';
+const APP_VERSION = 'v1.1 beta.6R2-EGOLOCK-CALDIST-WEB-LITE-3';
 const RED_DISTANCE_M = 100;
 const defaults = {
   cameraHeight:1.20, horizonPct:50.0, effectiveVFovDeg:42, calLocked:true, autoGeometry:true,
@@ -750,4 +750,4 @@ async function loop(ts){
 }
 
 document.addEventListener('visibilitychange',()=>{if(document.hidden&&running)stopCamera(true);});window.addEventListener('pagehide',()=>{if(running)stopCamera(false);});
-syncControls();resizeCanvas();updateQuality();updateNetworkState();updateSpeedUI();drawGuides();if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(console.warn));
+syncControls();resizeCanvas();updateQuality();updateNetworkState();updateSpeedUI();drawGuides();if('serviceWorker'in navigator)window.addEventListener('load',async()=>{try{const reg=await navigator.serviceWorker.register('./sw.js?v=weblite3',{updateViaCache:'none'});reg.update().catch(()=>{});}catch(e){console.warn(e);}});

@@ -1,4 +1,4 @@
-# DistanceADAS v1.1 beta.6R2 – EGOLOCK-CALDIST-WEB-LITE
+# AI-Dashcam v1.1 beta.6R2 – EGOLOCK-CALDIST-WEB-LITE-3
 
 Nhánh thử nghiệm WEB-LITE, tách khỏi baseline `DISPLAYFIX-EGOLOCK`.
 
@@ -21,3 +21,7 @@ Pipeline:
 - QUALITY theo rule/consensus, không neural network.
 
 Lưu ý: Đây là geometry web nhẹ, không phải ARKit native. Số mét vẫn cần kiểm chứng/hiệu chuẩn ngoài đường; không dùng như hệ thống phanh/cảnh báo an toàn đã chứng nhận.
+
+
+## Cache/Pages
+Bản WEB-LITE-3 dùng đồng bộ token `weblite3` cho index/app/style/manifest/service worker và cache `aidascam-weblite3-v1`.
