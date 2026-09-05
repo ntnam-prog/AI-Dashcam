@@ -24,7 +24,7 @@ const labels = {
 const VEHICLES = new Set(['car','truck','bus','motorcycle']);
 const CFG_KEY = 'distanceadas_cfg_v11b6r2_egolock_caldist_weblite';
 const PROFILE_KEY = 'distanceadas_camera_profiles_v1';
-const APP_VERSION = 'v1.1 beta.6R2-EGOLOCK-CALDIST-WEB-LITE';
+const APP_VERSION = 'v1.1 beta.6R2-EGOLOCK-CALDIST-WEB-LITE-FIXCACHE';
 const RED_DISTANCE_M = 100;
 const defaults = {
   cameraHeight:1.20, horizonPct:50.0, effectiveVFovDeg:42, calLocked:true, autoGeometry:true,
