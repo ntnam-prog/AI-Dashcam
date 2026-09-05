@@ -1,0 +1,15 @@
+AI-Dashcam WEB-LITE-4 FORCE-CLEAN
+
+Upload 4 files to ROOT of repo ntnam-prog/AI-Dashcam:
+1) index.html
+2) app-weblite4.js
+3) style-weblite4.css
+4) manifest.webmanifest
+
+Do NOT delete models/, vendor/, icons/.
+You may leave old app.js/style.css/sw.js in repo; WEB-LITE-4 does not call them.
+After GitHub Pages deploys, open:
+https://ntnam-prog.github.io/AI-Dashcam/?v=weblite4
+
+Correct screen must show:
+v1.1 beta.6R2-EGOLOCK-CALDIST-WEB-LITE-4
