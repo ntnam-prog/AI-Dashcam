@@ -7,10 +7,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="DistanceADAS">
-  <title>DistanceADAS Web v1.1 beta.6R2-DISPLAYFIX-EGOLOCK</title>
+  <title>AI Dashcam EGOLOCK-CALDIST</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="style.css?v=116r2df2-egolock">
+  <link rel="stylesheet" href="style.css?v=116r2-caldist1">
 </head>
 <body>
   <main id="app">
@@ -20,7 +20,7 @@
     <div id="topbar">
       <div>
         <div id="status">Sẵn sàng</div>
-        <div id="substatus">v1.1 beta.6R2-DISPLAYFIX-EGOLOCK • WIDE LOCK + TELE DISTANCE + DISPLAY FIX</div>
+        <div id="substatus">v1.1 beta.6R2-EGOLOCK-CALDIST • CUT-IN + CAMERA PROFILE + GROUND/FUSION</div>
       </div>
       <div class="rightStats">
         <div id="fps">AI -- FPS</div>
@@ -63,7 +63,7 @@
       <div class="panel-card">
         <div class="panel-head">
           <div>
-            <div class="panel-title">DistanceADAS v1.1 beta.6R2-DISPLAYFIX-EGOLOCK</div>
+            <div class="panel-title">AI Dashcam EGOLOCK-CALDIST</div>
             <div class="panel-sub">Giữ nguyên lõi R1: WIDE luôn khóa xe cùng làn; khi xe xa, TELE mở song song chỉ để hỗ trợ đo khoảng cách. TELE lỗi thì tự fallback WIDE.</div>
           </div>
           <button id="closePanelBtn" class="iconBtn">✕</button>
@@ -98,22 +98,22 @@
         </div>
         <div class="help">Chiều cao mặc định 1,20 m; có thể kéo thanh hoặc nhập số chính xác rồi bấm TẠO VẠCH. AUTO tạo trước 6 mốc. Khi cần chính xác hơn, bật KÉO VẠCH rồi chạm trực tiếp vạch 10/20/30/50/70/100 m và kéo lên/xuống; thả tay là lưu. Vạch 100 m màu đỏ. Khi khóa, chạm màn hình không làm lệch hiệu chuẩn.</div>
 
-        <div class="sectionTitle">AUTO LANE 3–4 LÀN</div>
+        <div class="sectionTitle">AUTO LANE 3 LÀN</div>
         <label class="checkrow">
           <input id="autoLane" type="checkbox" checked>
           <span>Tự nhận làn theo vạch đường thực tế</span>
         </label>
-        <div class="help">AUTO LANE phân tích các vạch/biên đường qua nhiều khung hình, tự chọn 3 hoặc 4 làn và tự xác định làn xe mình theo tâm ảnh. Khi chưa đủ tin cậy, xe vẫn được nhận và hiện khoảng cách với nhãn L? thay vì gán sai làn. Các vạch xanh/vạch khoảng cách được ẩn khi chạy bình thường.</div>
+        <div class="help">AUTO LANE phân tích các vạch/biên đường qua nhiều khung hình theo mô hình cố định 3 làn và tự xác định làn xe mình theo tâm ảnh. Khi chưa đủ tin cậy, xe vẫn được nhận và hiện khoảng cách với nhãn L? thay vì gán sai làn. Các vạch xanh/vạch khoảng cách được ẩn khi chạy bình thường.</div>
 
         <div class="sectionTitle">DỰ PHÒNG KHI AUTO LANE KHÔNG KHÓA</div>
         <label>
           Số làn theo dõi
-          <input id="laneCountRange" type="range" min="3" max="4" value="4" step="1">
-          <span id="laneCountValue">4 làn</span>
+          <input id="laneCountRange" type="range" min="3" max="3" value="3" step="1">
+          <span id="laneCountValue">3 làn</span>
         </label>
         <label>
           Làn xe mình
-          <input id="egoLaneRange" type="range" min="1" max="4" value="2" step="1">
+          <input id="egoLaneRange" type="range" min="1" max="3" value="2" step="1">
           <span id="egoLaneValue">L2</span>
         </label>
         <label>
@@ -171,6 +171,6 @@
       </div>
     </section>
   </main>
-  <script src="app.js?v=116r2df2-egolock"></script>
+  <script src="app.js?v=116r2-caldist3lane1"></script>
 </body>
 </html>
