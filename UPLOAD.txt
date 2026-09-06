@@ -1,13 +1,19 @@
-AI-Dashcam WEB-LITE-5 DISTANCE ENGINE
+AI-Dashcam WEB-LITE-5 PRO HUD + GMAP
 
-Upload 4 files to ROOT of GitHub repo AI-Dashcam:
-1. index.html
-2. app-weblite5.js
-3. style-weblite5.css
-4. manifest.webmanifest
+Upload these files to repo root:
+- index.html
+- app-weblite5.js
+- style-pro-hud.css
+- nav-gmap.js
+- manifest.webmanifest
 
-KEEP: models/, vendor/, icons/.
-Old app-weblite4.js/style-weblite4.css may remain; WEB-LITE-5 does not call them.
+Keep existing folders: models/, vendor/, icons/.
 
-WEB-LITE-5 keeps EGOLOCK/CUT-IN/detector/bottom-bbox input unchanged.
-Distance-only changes: empirical multi-point road-plane mapping in inverse-distance space, filtered IMU pitch compensation, uncertainty estimate, existing size/TELE cross-check and temporal filter.
+Core WEB-LITE-5 detector/EGOLOCK/CUT-IN/distance logic is retained.
+Added:
+- single lightweight HUD overlay based on approved layout
+- Google Maps route-selection module: MAP -> destination -> route -> START -> map UI closes -> compact NAV banner remains
+- Vietnamese route + ADAS voice queue
+- camera pitch fine adjustment: CÚI [-] ... 0.0% ... [+] NGỬA
+
+Google Maps requires a Google Maps Platform browser API key with Maps JavaScript API + Places enabled. The browser key is client-side by design; restrict it by HTTP referrer to your GitHub Pages origin.

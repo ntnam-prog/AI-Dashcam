@@ -27,7 +27,7 @@ const PROFILE_KEY = 'aidascam_camera_profiles_v1';
 const APP_VERSION = 'v1.1 beta.6R2-EGOLOCK-CALDIST-WEB-LITE-5';
 const RED_DISTANCE_M = 100;
 const defaults = {
-  cameraHeight:1.20, horizonPct:50.0, effectiveVFovDeg:42, calLocked:true, autoGeometry:true,
+  cameraHeight:1.20, horizonPct:50.0, manualHorizonOffsetPct:0.0, effectiveVFovDeg:42, calLocked:true, autoGeometry:true,
   calLines:{10:65.64,20:57.82,30:55.21,50:53.13,70:52.23,100:51.56},
   laneCount:3, egoLane:2, autoLane:true, vanishXPct:50, laneCenterBottomPct:50, laneWidthBottomPct:22,
   scoreThreshold:0.34, smoothingAlpha:0.28, aiHz:12, showAll:false, gpsSpeedEnabled:true
@@ -305,11 +305,12 @@ function imuFresh(){return Number.isFinite(devicePitchDeg)&&performance.now()-de
 function captureImuReference(horizonPct){if(!imuFresh())return;imuRefDeg=devicePitchDeg;imuRefHorizonPct=Number(horizonPct);}
 function effectiveHorizonPct(){
   const cal=currentCalibration(),base=cal?.horizonPct??cfg.horizonPct;
-  if(!imuFresh()||!Number.isFinite(imuRefDeg)||!Number.isFinite(imuRefHorizonPct))return base;
+  const manual=Number(cfg.manualHorizonOffsetPct)||0;
+  if(!imuFresh()||!Number.isFinite(imuRefDeg)||!Number.isFinite(imuRefHorizonPct))return Math.max(15,Math.min(80,base+manual));
   const fyNorm=0.5/Math.tan(((cfg.effectiveVFovDeg||42)*Math.PI/180)/2);
   const pctPerDeg=100*fyNorm*Math.PI/180;
   const shift=Math.max(-IMU_MAX_HORIZON_SHIFT_PCT,Math.min(IMU_MAX_HORIZON_SHIFT_PCT,(devicePitchDeg-imuRefDeg)*pctPerDeg));
-  return Math.max(15,Math.min(80,imuRefHorizonPct+shift));
+  return Math.max(15,Math.min(80,imuRefHorizonPct+shift+manual));
 }
 if(typeof window!=='undefined')window.addEventListener('deviceorientation',onDeviceOrientation,{passive:true});
 
@@ -326,10 +327,10 @@ function fitCalibration(lines){
 }
 function currentCalibration(){ return fitCalibration(cfg.calLines); }
 function tempCfg(){
-  return {...cfg,cameraHeight:Number(inputs.cameraHeight.value),horizonPct:Number(inputs.horizon.value),autoGeometry:$('autoGeometry')?.checked??cfg.autoGeometry,autoLane:$('autoLane')?.checked??cfg.autoLane,laneCount:3,egoLane:Math.min(3,Number(inputs.egoLane.value)),vanishXPct:Number(inputs.vanishX.value),laneCenterBottomPct:Number(inputs.laneCenter.value),laneWidthBottomPct:Number(inputs.laneWidth.value),scoreThreshold:Number(inputs.score.value),smoothingAlpha:Number(inputs.smooth.value),aiHz:Number(inputs.aiHz.value),showAll:inputs.showAll.checked,gpsSpeedEnabled:inputs.gpsSpeedEnabled?.checked??cfg.gpsSpeedEnabled};
+  return {...cfg,cameraHeight:Number(inputs.cameraHeight.value),horizonPct:Number(inputs.horizon.value),manualHorizonOffsetPct:Number($('pitchFineRange')?.value)||0,autoGeometry:$('autoGeometry')?.checked??cfg.autoGeometry,autoLane:$('autoLane')?.checked??cfg.autoLane,laneCount:3,egoLane:Math.min(3,Number(inputs.egoLane.value)),vanishXPct:Number(inputs.vanishX.value),laneCenterBottomPct:Number(inputs.laneCenter.value),laneWidthBottomPct:Number(inputs.laneWidth.value),scoreThreshold:Number(inputs.score.value),smoothingAlpha:Number(inputs.smooth.value),aiHz:Number(inputs.aiHz.value),showAll:inputs.showAll.checked,gpsSpeedEnabled:inputs.gpsSpeedEnabled?.checked??cfg.gpsSpeedEnabled};
 }
 function syncControls(){
-  inputs.cameraHeight.value=cfg.cameraHeight;inputs.cameraHeightRange.value=cfg.cameraHeight;inputs.horizon.value=cfg.horizonPct;if($('autoGeometry'))$('autoGeometry').checked=cfg.autoGeometry;if($('autoLane'))$('autoLane').checked=cfg.autoLane;
+  inputs.cameraHeight.value=cfg.cameraHeight;inputs.cameraHeightRange.value=cfg.cameraHeight;inputs.horizon.value=cfg.horizonPct;if($('pitchFineRange'))$('pitchFineRange').value=Number(cfg.manualHorizonOffsetPct)||0;if($('autoGeometry'))$('autoGeometry').checked=cfg.autoGeometry;if($('autoLane'))$('autoLane').checked=cfg.autoLane;
   inputs.laneCount.value=cfg.laneCount; inputs.egoLane.max=cfg.laneCount; inputs.egoLane.value=Math.min(cfg.egoLane,cfg.laneCount);
   inputs.vanishX.value=cfg.vanishXPct; inputs.laneCenter.value=cfg.laneCenterBottomPct; inputs.laneWidth.value=cfg.laneWidthBottomPct;
   inputs.score.value=cfg.scoreThreshold; inputs.smooth.value=cfg.smoothingAlpha; inputs.aiHz.value=cfg.aiHz; inputs.showAll.checked=cfg.showAll;if(inputs.gpsSpeedEnabled)inputs.gpsSpeedEnabled.checked=cfg.gpsSpeedEnabled;updateLabels();
@@ -337,13 +338,16 @@ function syncControls(){
 function updateLabels(){
   const heightVal=Math.max(0.8,Math.min(2.2,Number(inputs.cameraHeight.value)||1.2)); inputs.cameraHeightRange.value=heightVal; labels.cameraHeight.textContent=`${heightVal.toFixed(2)} m`;
   const lc=Number(inputs.laneCount.value);inputs.egoLane.max=lc;if(Number(inputs.egoLane.value)>lc)inputs.egoLane.value=lc;
-  labels.horizon.textContent=`${Number(inputs.horizon.value).toFixed(1)}%`;labels.laneCount.textContent=`${lc} làn`;labels.egoLane.textContent=`L${Number(inputs.egoLane.value)}`;
+  labels.horizon.textContent=`${Number(inputs.horizon.value).toFixed(1)}%`;if($('pitchFineValue'))$('pitchFineValue').textContent=`${(Number($('pitchFineRange')?.value)||0).toFixed(1)}%`;labels.laneCount.textContent=`${lc} làn`;labels.egoLane.textContent=`L${Number(inputs.egoLane.value)}`;
   labels.vanishX.textContent=`${Number(inputs.vanishX.value).toFixed(1)}%`;labels.laneCenter.textContent=`${Number(inputs.laneCenter.value).toFixed(1)}%`;labels.laneWidth.textContent=`${Number(inputs.laneWidth.value).toFixed(1)}%`;labels.score.textContent=Number(inputs.score.value).toFixed(2);labels.smooth.textContent=Number(inputs.smooth.value).toFixed(2);labels.aiHz.textContent=`${Number(inputs.aiHz.value).toFixed(0)} Hz`;
   const cal=currentCalibration();labels.cal.classList.toggle('bad',!cal);labels.cal.textContent=cal?`6 điểm • H ${cal.horizonPct.toFixed(1)}% • đỏ 100 m @ ${Number(cfg.calLines[100]).toFixed(1)}% • camera ${Number(inputs.cameraHeight.value).toFixed(2)} m`:'Hiệu chuẩn chưa hợp lệ.';
 }
 inputs.cameraHeightRange.addEventListener('input',()=>{inputs.cameraHeight.value=Number(inputs.cameraHeightRange.value).toFixed(2);updateLabels();});
 inputs.cameraHeight.addEventListener('input',()=>{const v=Math.max(0.8,Math.min(2.2,Number(inputs.cameraHeight.value)||1.2));inputs.cameraHeightRange.value=v;updateLabels();});
 Object.values(inputs).forEach(el=>{if(el?.tagName==='INPUT'&&el!==inputs.cameraHeightRange&&el!==inputs.cameraHeight)el.addEventListener('input',updateLabels);});
+$('pitchFineRange')?.addEventListener('input',()=>{cfg.manualHorizonOffsetPct=Number($('pitchFineRange').value)||0;saveCfg();updateLabels();updateQuality();render(lastPredictions);});
+$('pitchMinusBtn')?.addEventListener('click',()=>{const r=$('pitchFineRange');if(!r)return;r.value=Math.max(Number(r.min),Number(r.value)-0.1).toFixed(1);r.dispatchEvent(new Event('input'));});
+$('pitchPlusBtn')?.addEventListener('click',()=>{const r=$('pitchFineRange');if(!r)return;r.value=Math.min(Number(r.max),Number(r.value)+0.1).toFixed(1);r.dispatchEvent(new Event('input'));});
 function openPanel(){syncControls();ui.panel.classList.remove('hidden');ui.panel.setAttribute('aria-hidden','false');}
 function closePanel(){ui.panel.classList.add('hidden');ui.panel.setAttribute('aria-hidden','true');}
 ui.settings.addEventListener('click',openPanel);ui.close.addEventListener('click',closePanel);
@@ -677,7 +681,7 @@ function updateReadout(lead,h){
   const d=displayDistanceForTrack(lead,h),q=distanceQuality(lead,h);ui.distance.textContent=d.main;ui.lead.textContent='XE TRƯỚC';ui.laneMain.textContent='AUTO';ui.track.textContent=`LOCK: XE TRƯỚC • ${lead.cutInState||'OWN_LANE'} • ${d.source||'WIDE'}`;ui.quality.textContent=`QUALITY: ${q.level} • ${Math.round(q.score*100)}%${Number.isFinite(q.uncertainty)?` • ±${q.uncertainty.toFixed(q.uncertainty<1?1:0)}m`:''}`;
   if(d.kind==='number'&&d.numeric<15)ui.readout.classList.add('state-warning');
 }
-function updateQuality(){const cal=currentCalibration(),gs=cfg.autoGeometry?(geoState.mode==='LOCK'?`AUTO LOCK ${Math.round(geoState.confidence*100)}%`:'AUTO CAL'):'MANUAL',li=effectiveLaneInfo(),ls=cfg.autoLane?(laneState.mode==='LOCK'?`AUTO LANE ${li.count}L ${Math.round(laneState.confidence*100)}%`:'AUTO LANE…'):`${li.count} LÀN`;ui.quality.textContent=cal?`${gs} • ${ls} • ${imuFresh()?'IMU':'NO IMU'} • ${cfg.cameraHeight.toFixed(2)}m`:'CAL: KHÔNG HỢP LỆ';}
+function updateQuality(){const cal=currentCalibration(),gs=cfg.autoGeometry?(geoState.mode==='LOCK'?`AUTO LOCK ${Math.round(geoState.confidence*100)}%`:'AUTO CAL'):'MANUAL',li=effectiveLaneInfo(),ls=cfg.autoLane?(laneState.mode==='LOCK'?`AUTO LANE ${li.count}L ${Math.round(laneState.confidence*100)}%`:'AUTO LANE…'):`${li.count} LÀN`;ui.quality.textContent=cal?`${gs} • ${ls} • ${imuFresh()?'IMU':'NO IMU'} • ${cfg.cameraHeight.toFixed(2)}m • PITCH ${(Number(cfg.manualHorizonOffsetPct)||0).toFixed(1)}%`:'CAL: KHÔNG HỢP LỆ';}
 
 function drawGuides(){
   if(!calibrationMode)return;
