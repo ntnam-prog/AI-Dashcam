@@ -1,0 +1,33 @@
+:root{
+  --safe-top:env(safe-area-inset-top);--safe-bottom:env(safe-area-inset-bottom);
+  --hud:#eef7ff;--hud-dim:rgba(238,247,255,.70);--hud-line:rgba(238,247,255,.36);
+  --ok:#63f0a6;--nav:#67c8ff;--warn:#ffd45c;--danger:#ff6b6b;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;width:100%;height:100%;background:#05070a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;overflow:hidden}
+#app{position:fixed;inset:0;background:#05070a}
+#camera,#overlay{position:absolute;inset:0;width:100%;height:100%}
+#camera{object-fit:cover;background:#000}#overlay{pointer-events:none;touch-action:none}#overlay.cal-active{pointer-events:auto;cursor:ns-resize}
+/* One single transparent HUD layer: no glass canvas, no blur panels. */
+#hudFrame{position:absolute;inset:0;z-index:4;pointer-events:none;border:1px solid rgba(255,255,255,.06)}
+.hudBox{border:1px solid var(--hud-line);border-radius:10px;background:rgba(0,0,0,.08);box-shadow:0 1px 2px rgba(0,0,0,.35);text-shadow:0 1px 3px #000}
+#topbar{position:absolute;top:calc(10px + var(--safe-top));left:12px;right:12px;z-index:7;display:flex;justify-content:space-between;gap:12px;font-size:12px;pointer-events:none}
+#status{color:var(--ok);font-weight:800;letter-spacing:.25px}.hudStatus{display:inline-block;padding:6px 9px}
+#substatus{opacity:.66;font-size:9px;margin:3px 0 0 3px;max-width:48vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rightStats{text-align:right;font-variant-numeric:tabular-nums;padding:6px 9px;color:var(--hud)}#backend{opacity:.62;font-size:9px;margin-top:2px}
+.navStrip{position:absolute;z-index:8;top:calc(10px + var(--safe-top));left:50%;transform:translateX(-50%);min-width:min(440px,48vw);max-width:52vw;height:48px;display:flex;align-items:center;gap:10px;padding:5px 12px;color:var(--nav);pointer-events:none}
+.navArrow{font-size:28px;font-weight:800;line-height:1}.navDistance{font-size:16px;font-weight:850;font-variant-numeric:tabular-nums;white-space:nowrap}.navText{font-size:12px;color:var(--hud);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.nav-idle{opacity:.58}.nav-preview{opacity:1;border-color:rgba(103,200,255,.62)}
+.driveStats{position:absolute;top:calc(72px + var(--safe-top));left:12px;z-index:7;display:grid;grid-template-columns:max-content max-content;gap:6px;pointer-events:none}
+.driveStats span{border:1px solid var(--hud-line);border-radius:8px;padding:5px 7px;font-size:10px;font-weight:750;letter-spacing:.15px;background:rgba(0,0,0,.08);text-shadow:0 1px 3px #000;color:var(--hud)}
+#networkState{color:var(--ok)}#gpsSpeed{color:var(--nav)}#closingSpeed{color:var(--warn)}#leadSpeed{color:var(--hud)}
+#qualityBar{position:absolute;left:12px;bottom:calc(54px + var(--safe-bottom));z-index:7;display:flex;gap:10px;font-size:9px;letter-spacing:.25px;padding:5px 7px;color:var(--hud-dim);pointer-events:none;max-width:72vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#hint{position:absolute;bottom:calc(54px + var(--safe-bottom));left:50%;transform:translateX(-50%);max-width:45vw;text-align:center;font-size:9px;opacity:.58;text-shadow:0 1px 3px #000;z-index:6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;pointer-events:none}
+#controls{position:absolute;right:12px;bottom:calc(10px + var(--safe-bottom));display:flex;gap:7px;justify-content:flex-end;z-index:9}
+button{border:1px solid rgba(238,247,255,.42);color:#fff;background:rgba(0,0,0,.16);border-radius:9px;padding:8px 11px;font-weight:780;letter-spacing:.25px;text-shadow:0 1px 3px #000;box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
+button.primary{border-color:rgba(99,240,166,.72);color:var(--ok);background:rgba(0,0,0,.18)}button.mapBtn{border-color:rgba(103,200,255,.72);color:var(--nav)}#videoBtn{color:#dbe6ff}button:active{transform:scale(.98);background:rgba(255,255,255,.12)}
+#centerReadout{display:none}
+/* Settings remains a modal because it is not part of the driving HUD. */
+#panel{position:absolute;inset:0;z-index:20;display:grid;place-items:center;background:rgba(0,0,0,.68);padding:calc(10px + var(--safe-top)) 12px calc(10px + var(--safe-bottom))}#panel.hidden{display:none}
+.panel-card{width:min(680px,97vw);max-height:94vh;overflow:auto;background:rgba(14,17,22,.98);border:1px solid rgba(255,255,255,.18);border-radius:16px;padding:15px}.panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.panel-title{font-size:20px;font-weight:800}.panel-sub{margin-top:3px;font-size:12px;opacity:.72}.iconBtn{padding:6px 9px}.sectionTitle{margin:17px 0 7px;padding-top:10px;border-top:1px solid rgba(255,255,255,.1);font-size:11px;font-weight:800;letter-spacing:.8px;opacity:.8}label{display:grid;grid-template-columns:minmax(145px,1fr) minmax(125px,1.45fr) 66px;align-items:center;gap:10px;margin:10px 0;font-size:13px}input[type="range"]{width:100%}input[type="number"]{width:100%;padding:8px;border-radius:8px;border:1px solid #555;background:#090b0e;color:#fff}.checkrow{grid-template-columns:auto 1fr;justify-content:start}.calResult{margin:8px 0;padding:9px 10px;border-radius:8px;background:rgba(255,255,255,.07);font-size:12px;font-variant-numeric:tabular-nums}.calResult.bad{background:rgba(150,0,0,.25)}.help{margin-top:13px;font-size:12px;line-height:1.45;opacity:.82}.panel-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}.calButtons{display:flex;gap:7px;flex-wrap:wrap;margin:8px 0}.calButtons button{font-size:11px;padding:8px 10px}
+@media(orientation:portrait){.navStrip{top:calc(48px + var(--safe-top));min-width:72vw;max-width:86vw}.driveStats{top:calc(104px + var(--safe-top));grid-template-columns:max-content}.rightStats{max-width:34vw}#substatus{max-width:56vw}#controls{left:10px;right:10px;justify-content:center;flex-wrap:wrap}#qualityBar{bottom:calc(96px + var(--safe-bottom));max-width:90vw}#hint{display:none}}
+@media(max-width:560px){#controls button{padding:8px 9px;font-size:10px}label{grid-template-columns:1fr 1.2fr 58px;font-size:12px}.navText{font-size:10px}}

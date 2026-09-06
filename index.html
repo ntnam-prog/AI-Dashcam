@@ -7,22 +7,30 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="AI-Dashcam">
-  <title>AI-Dashcam WEB-LITE-5</title>
-  <link rel="manifest" href="manifest.webmanifest?v=weblite4">
+  <title>AI-Dashcam WEB-LITE-5 HUD OUTLINE</title>
+  <link rel="manifest" href="manifest.webmanifest?v=weblite5hud1">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="style-weblite5.css?v=20260905-1440">
+  <link rel="stylesheet" href="style-weblite5-hud.css?v=20260906-hud1">
 </head>
 <body>
   <main id="app">
     <video id="camera" autoplay muted playsinline></video>
     <canvas id="overlay"></canvas>
 
+    <div id="hudFrame" aria-hidden="true"></div>
+
+    <div id="navStrip" class="hudBox navStrip nav-idle">
+      <span class="navArrow">↑</span>
+      <span class="navDistance">NAV</span>
+      <span class="navText">Chưa chọn tuyến đường</span>
+    </div>
+
     <div id="topbar">
       <div>
-        <div id="status">Sẵn sàng</div>
+        <div id="status" class="hudBox hudStatus">Sẵn sàng</div>
         <div id="substatus">v1.1 beta.6R2-EGOLOCK-CALDIST-WEB-LITE-5 • CUT-IN + CAMERA PROFILE + GROUND/FUSION</div>
       </div>
-      <div class="rightStats">
+      <div class="rightStats hudBox">
         <div id="fps">AI -- FPS</div>
         <div id="backend">TF --</div>
       </div>
@@ -37,25 +45,26 @@
       </div>
     </div>
 
-    <div id="driveStats" class="driveStats">
+    <div id="driveStats" class="driveStats hudCluster">
       <span id="networkState">NET: --</span>
       <span id="gpsSpeed">GPS: -- km/h</span>
       <span id="closingSpeed">TIẾP CẬN: -- km/h</span>
       <span id="leadSpeed">XE TRƯỚC: -- km/h</span>
     </div>
 
-    <div id="qualityBar">
+    <div id="qualityBar" class="hudBox">
       <span id="qualityText">CAL: chưa kiểm tra</span>
       <span id="trackText">TRACK: --</span>
     </div>
 
     <div id="hint">AUTO LANE • khoảng cách hiển thị trực tiếp trên từng xe</div>
 
-    <div id="controls">
+    <div id="controls" class="hudControls">
       <button id="startBtn" class="primary">BẬT CAMERA</button>
       <button id="videoBtn">VIDEO THỬ</button>
       <input id="videoFile" type="file" accept="video/*" hidden>
       <button id="calBtn">AUTO LẠI</button>
+      <button id="mapBtn" class="mapBtn" title="Google Maps / NAV">MAP</button>
       <button id="settingsBtn">CÀI ĐẶT</button>
     </div>
 
@@ -63,7 +72,7 @@
       <div class="panel-card">
         <div class="panel-head">
           <div>
-            <div class="panel-title">AI-Dashcam WEB-LITE-5</div>
+            <div class="panel-title">AI-Dashcam WEB-LITE-5 • HUD OUTLINE</div>
             <div class="panel-sub">Giữ nguyên lõi R1: WIDE luôn khóa xe cùng làn; khi xe xa, TELE mở song song chỉ để hỗ trợ đo khoảng cách. TELE lỗi thì tự fallback WIDE.</div>
           </div>
           <button id="closePanelBtn" class="iconBtn">✕</button>
@@ -186,6 +195,22 @@
     } catch(e) { console.warn('cache cleanup', e); }
   })();
   </script>
-  <script src="app-weblite5.js?v=20260906-1455"></script>
+  <script src="app-weblite5.js?v=20260906-hud1"></script>
+  <script>
+    // HUD OUTLINE shell only. NAV routing remains an independent module and is not wired into Distance Engine.
+    document.getElementById('mapBtn')?.addEventListener('click',()=>{
+      const strip=document.getElementById('navStrip');
+      strip?.classList.toggle('nav-preview');
+      if(strip?.classList.contains('nav-preview')){
+        strip.querySelector('.navArrow').textContent='↰';
+        strip.querySelector('.navDistance').textContent='300 m';
+        strip.querySelector('.navText').textContent='Rẽ trái vào Lĩnh Nam • NAV UI preview';
+      } else {
+        strip.querySelector('.navArrow').textContent='↑';
+        strip.querySelector('.navDistance').textContent='NAV';
+        strip.querySelector('.navText').textContent='Chưa chọn tuyến đường';
+      }
+    });
+  </script>
 </body>
 </html>
