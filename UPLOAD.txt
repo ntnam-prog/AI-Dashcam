@@ -1,19 +1,11 @@
-AI-Dashcam WEB-LITE-5 PRO HUD + GMAP
+AI-Dashcam WEB-LITE-5 — ver 1-hud
 
-Upload these files to repo root:
-- index.html
-- app-weblite5.js
-- style-pro-hud.css
-- nav-gmap.js
-- manifest.webmanifest
+Upload toàn bộ các file trong thư mục này lên ROOT repo AI-Dashcam và ghi đè file cũ.
+HUD mới chỉ thay shell/index + style-pro-hud.css. Lõi app-weblite5.js giữ nguyên.
+Google NAV nằm riêng trong nav-gmap.js.
 
-Keep existing folders: models/, vendor/, icons/.
-
-Core WEB-LITE-5 detector/EGOLOCK/CUT-IN/distance logic is retained.
-Added:
-- single lightweight HUD overlay based on approved layout
-- Google Maps route-selection module: MAP -> destination -> route -> START -> map UI closes -> compact NAV banner remains
-- Vietnamese route + ADAS voice queue
-- camera pitch fine adjustment: CÚI [-] ... 0.0% ... [+] NGỬA
-
-Google Maps requires a Google Maps Platform browser API key with Maps JavaScript API + Places enabled. The browser key is client-side by design; restrict it by HTTP referrer to your GitHub Pages origin.
+Dấu nhận biết bản mới:
+- góc phải trên có chữ nhỏ: ver 1-hud
+- không còn AI/FPS trên HUD
+- không còn các dải AUTO CAL/AUTO LANE/debug trên màn hình chạy
+- MAP ở cạnh phải, không nằm trong hàng nút dưới

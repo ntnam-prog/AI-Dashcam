@@ -10,7 +10,7 @@
   <title>AI-Dashcam WEB-LITE-5 PRO HUD + GMAP</title>
   <link rel="manifest" href="manifest.webmanifest?v=pro-gmap1">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="style-pro-hud.css?v=20260906-2115">
+  <link rel="stylesheet" href="style-pro-hud.css?v=20260906-hud2">
 </head>
 <body>
 <main id="app">
@@ -53,7 +53,8 @@
 
     <div class="hud-top-right">
       <div id="clock" class="clock">--:--</div>
-      <div class="runtime"><span id="fps">AI -- FPS</span><span id="backend">TF --</span></div>
+      <div class="hud-version">ver 1-hud</div>
+      <div class="runtime" aria-hidden="true"><span id="fps">AI -- FPS</span><span id="backend">TF --</span></div>
     </div>
 
     <div class="hud-right">
@@ -228,7 +229,7 @@
   } catch(e) { console.warn('cache cleanup',e); }
 })();
 </script>
-<script src="app-weblite5.js?v=20260906-2115"></script>
-<script src="nav-gmap.js?v=20260906-2115"></script>
+<script src="app-weblite5.js?v=20260906-hud2"></script>
+<script src="nav-gmap.js?v=20260906-hud2"></script>
 </body>
 </html>
