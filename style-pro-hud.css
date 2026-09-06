@@ -76,3 +76,24 @@ body{touch-action:manipulation}
   .nav-lite-panel{padding-top:max(62px,calc(env(safe-area-inset-top) + 44px)) !important}
   .nav-lite-card{width:92vw !important}
 }
+
+/* R5 HUD COMPACT: circled left/right groups are ~1/3 of R4 linear size.
+   Presentation layer only; ADAS core is untouched. */
+.hud-left{transform:scale(.34) !important;transform-origin:top left !important}
+.hud-right{transform:scale(.34) !important;transform-origin:top right !important}
+
+/* Keep NAV compact, centred and clear of the now-small side groups. */
+.nav-banner{top:max(14px,env(safe-area-inset-top)) !important;width:min(560px,54vw) !important;min-width:250px !important;height:54px !important;grid-template-columns:38px 70px 1fr !important;padding:4px 9px !important;border-radius:13px !important}
+.nav-arrow{font-size:28px !important}.nav-distance{font-size:16px !important}.nav-copy{padding-left:8px !important}.nav-copy #navInstruction{font-size:11px !important}.nav-next{font-size:8px !important;margin-top:2px !important}
+
+/* R5 route flow: no API-key block and no embedded Google map. */
+.nav-lite-actions{justify-content:flex-end}
+.nav-lite-btn.primary{min-width:150px}
+.nav-lite-status{min-height:18px}
+
+@media(max-width:1000px){
+  .hud-left{transform:scale(.34) !important}
+  .hud-right{transform:scale(.34) !important}
+  .nav-banner{width:52vw !important;min-width:235px !important;height:48px !important;grid-template-columns:32px 60px 1fr !important;padding:3px 7px !important}
+  .nav-arrow{font-size:24px !important}.nav-distance{font-size:14px !important}.nav-copy #navInstruction{font-size:10px !important}.nav-next{font-size:7.5px !important}
+}

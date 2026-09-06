@@ -1,11 +1,9 @@
-AI-Dashcam ver 1-hud R3 NAV-LITE
-
-Upload toàn bộ file trong thư mục này lên root GitHub Pages và ghi đè bản cũ.
-
-R3 thay đổi:
-- app-weblite5.js: GIỮ NGUYÊN lõi ADAS.
-- Không nhúng/render Google Map trong AI-Dashcam.
-- MAP mở bảng NAV nhẹ; có nút mở Google Maps app/web ngoài.
-- NAV HUD lấy route steps riêng khi có Google Maps Platform API key.
-- Sau START chỉ giữ GPS + bước rẽ trên HUD.
-- HUD trái/phải vẫn thu nhỏ như R2.
+AI-Dashcam ver 1-hud R5 NAV-LITE NO-KEY
+Upload/ghi đè 6 file này vào root GitHub Pages.
+- app-weblite5.js: GIỮ NGUYÊN LÕI WEB-LITE-5
+- index.html: shell HUD + panel NAV
+- style-pro-hud.css: HUD compact ~1/3 + NAV overlay
+- nav-lite.js: route nhẹ không API key (Photon/Nominatim + OSRM)
+- manifest.webmanifest
+- UPLOAD.txt
+Luồng: MAP -> nhập điểm đến -> LẤY TUYẾN -> chọn tuyến -> BẮT ĐẦU -> panel đóng -> NAV chạy trên HUD.

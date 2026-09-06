@@ -87,20 +87,14 @@
       <div class="nav-lite-head">
         <div>
           <div class="nav-lite-title">NAV nhẹ</div>
-          <div class="nav-lite-sub">Không nhúng bản đồ. Google Maps chỉ mở ngoài app khi cần.</div>
+          <div class="nav-lite-sub">Không nhúng bản đồ • lấy tuyến trực tiếp cho HUD.</div>
         </div>
         <button id="navLiteCloseBtn" class="nav-lite-close" type="button">✕</button>
       </div>
       <label class="nav-lite-label" for="navDestination">Điểm đến</label>
       <input id="navDestination" class="nav-lite-input" type="search" placeholder="Nhập địa chỉ / tên địa điểm" autocomplete="off">
       <div class="nav-lite-actions">
-        <button id="openGoogleMapsBtn" class="nav-lite-btn map-open" type="button">MỞ GOOGLE MAPS</button>
-        <button id="navHudBtn" class="nav-lite-btn primary" type="button">LẤY TUYẾN CHO HUD</button>
-      </div>
-      <div id="navLiteSetup" class="nav-lite-setup hidden">
-        <div class="nav-lite-note">NAV HUD cần Google Maps Platform API key để lấy danh sách bước rẽ. Key chỉ được dùng khi anh bấm “LẤY TUYẾN CHO HUD”.</div>
-        <input id="gmapKeyInput" class="nav-lite-input" type="password" placeholder="Google Maps API key" autocomplete="off">
-        <button id="gmapKeySaveBtn" class="nav-lite-btn" type="button">LƯU KEY</button>
+        <button id="navHudBtn" class="nav-lite-btn primary" type="button">LẤY TUYẾN</button>
       </div>
       <div id="routePicker" class="nav-lite-routes hidden">
         <div id="routeChoices" class="route-choices"></div>
