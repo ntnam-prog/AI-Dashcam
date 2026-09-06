@@ -1,15 +1,13 @@
-AI-Dashcam WEB-LITE-4 FORCE-CLEAN
+AI-Dashcam WEB-LITE-5 DISTANCE ENGINE
 
-Upload 4 files to ROOT of repo ntnam-prog/AI-Dashcam:
-1) index.html
-2) app-weblite4.js
-3) style-weblite4.css
-4) manifest.webmanifest
+Upload 4 files to ROOT of GitHub repo AI-Dashcam:
+1. index.html
+2. app-weblite5.js
+3. style-weblite5.css
+4. manifest.webmanifest
 
-Do NOT delete models/, vendor/, icons/.
-You may leave old app.js/style.css/sw.js in repo; WEB-LITE-4 does not call them.
-After GitHub Pages deploys, open:
-https://ntnam-prog.github.io/AI-Dashcam/?v=weblite4
+KEEP: models/, vendor/, icons/.
+Old app-weblite4.js/style-weblite4.css may remain; WEB-LITE-5 does not call them.
 
-Correct screen must show:
-v1.1 beta.6R2-EGOLOCK-CALDIST-WEB-LITE-4
+WEB-LITE-5 keeps EGOLOCK/CUT-IN/detector/bottom-bbox input unchanged.
+Distance-only changes: empirical multi-point road-plane mapping in inverse-distance space, filtered IMU pitch compensation, uncertainty estimate, existing size/TELE cross-check and temporal filter.

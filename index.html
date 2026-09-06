@@ -7,10 +7,10 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="AI-Dashcam">
-  <title>AI-Dashcam WEB-LITE-4</title>
+  <title>AI-Dashcam WEB-LITE-5</title>
   <link rel="manifest" href="manifest.webmanifest?v=weblite4">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="style-weblite4.css?v=20260905-1440">
+  <link rel="stylesheet" href="style-weblite5.css?v=20260905-1440">
 </head>
 <body>
   <main id="app">
@@ -20,7 +20,7 @@
     <div id="topbar">
       <div>
         <div id="status">Sẵn sàng</div>
-        <div id="substatus">v1.1 beta.6R2-EGOLOCK-CALDIST-WEB-LITE-4 • CUT-IN + CAMERA PROFILE + GROUND/FUSION</div>
+        <div id="substatus">v1.1 beta.6R2-EGOLOCK-CALDIST-WEB-LITE-5 • CUT-IN + CAMERA PROFILE + GROUND/FUSION</div>
       </div>
       <div class="rightStats">
         <div id="fps">AI -- FPS</div>
@@ -63,7 +63,7 @@
       <div class="panel-card">
         <div class="panel-head">
           <div>
-            <div class="panel-title">AI-Dashcam WEB-LITE-4</div>
+            <div class="panel-title">AI-Dashcam WEB-LITE-5</div>
             <div class="panel-sub">Giữ nguyên lõi R1: WIDE luôn khóa xe cùng làn; khi xe xa, TELE mở song song chỉ để hỗ trợ đo khoảng cách. TELE lỗi thì tự fallback WIDE.</div>
           </div>
           <button id="closePanelBtn" class="iconBtn">✕</button>
@@ -172,7 +172,7 @@
     </section>
   </main>
   <script>
-  // WEB-LITE-4: remove all legacy Service Workers/caches once this index is loaded.
+  // WEB-LITE-5: keep native-PWA cache disabled during distance-engine validation.
   (async()=>{
     try {
       if ('serviceWorker' in navigator) {
@@ -186,6 +186,6 @@
     } catch(e) { console.warn('cache cleanup', e); }
   })();
   </script>
-  <script src="app-weblite4.js?v=20260905-1440"></script>
+  <script src="app-weblite5.js?v=20260906-1455"></script>
 </body>
 </html>
