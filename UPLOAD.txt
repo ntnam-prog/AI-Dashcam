@@ -1,4 +1,4 @@
-AI-Dashcam ver 1-hud R5 NAV-LITE NO-KEY
+AI-Dashcam ver 1-hud R6 NAV-LITE NO-KEY
 Upload/ghi đè 6 file này vào root GitHub Pages.
 - app-weblite5.js: GIỮ NGUYÊN LÕI WEB-LITE-5
 - index.html: shell HUD + panel NAV
@@ -7,3 +7,5 @@ Upload/ghi đè 6 file này vào root GitHub Pages.
 - manifest.webmanifest
 - UPLOAD.txt
 Luồng: MAP -> nhập điểm đến -> LẤY TUYẾN -> chọn tuyến -> BẮT ĐẦU -> panel đóng -> NAV chạy trên HUD.
+
+R7: tang +4px cac co chu HUD/NAV; khong doi app-weblite5.js.

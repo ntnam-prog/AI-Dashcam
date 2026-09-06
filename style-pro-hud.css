@@ -97,3 +97,58 @@ body{touch-action:manipulation}
   .nav-banner{width:52vw !important;min-width:235px !important;height:48px !important;grid-template-columns:32px 60px 1fr !important;padding:3px 7px !important}
   .nav-arrow{font-size:24px !important}.nav-distance{font-size:14px !important}.nav-copy #navInstruction{font-size:10px !important}.nav-next{font-size:7.5px !important}
 }
+
+/* R6 READABILITY: enlarge the three circled HUD zones without touching ADAS core. */
+.hud-left{transform:scale(.50) !important;transform-origin:top left !important}
+.hud-right{transform:scale(.50) !important;transform-origin:top right !important}
+.nav-banner{
+  width:min(700px,58vw) !important;
+  min-width:360px !important;
+  height:64px !important;
+  grid-template-columns:46px 94px 1fr !important;
+  padding:6px 12px !important;
+  border-radius:15px !important;
+}
+.nav-arrow{font-size:34px !important}
+.nav-distance{font-size:21px !important;font-weight:850 !important}
+.nav-copy{padding-left:10px !important}
+.nav-copy #navInstruction{font-size:14px !important;font-weight:800 !important}
+.nav-next{font-size:10px !important;margin-top:3px !important}
+
+@media(max-width:1000px){
+  .hud-left{transform:scale(.50) !important}
+  .hud-right{transform:scale(.50) !important}
+  .nav-banner{width:56vw !important;min-width:300px !important;height:58px !important;grid-template-columns:40px 80px 1fr !important;padding:5px 9px !important}
+  .nav-arrow{font-size:30px !important}.nav-distance{font-size:18px !important}.nav-copy #navInstruction{font-size:12px !important}.nav-next{font-size:9px !important}
+}
+
+/* R7 FONT +4PX: readability only. No geometry/core changes. */
+.speed-card #gpsSpeed{font-size:35px !important}
+.lead-copy #leadState{font-size:16px !important}
+.distance-line #distanceMain{font-size:41px !important}
+.distance-line .unit{font-size:19px !important}
+.gps-title{font-size:15px !important}
+.gps-card #gpsCoords{font-size:15px !important}
+.nav-distance{font-size:25px !important}
+.nav-copy #navInstruction{font-size:18px !important}
+.nav-next{font-size:14px !important}
+.clock{font-size:28px !important}
+.hud-version{font-size:14px !important}
+.side-btn{font-size:15px !important}
+.circle-btn{font-size:14px !important}
+
+@media(max-width:1000px){
+  .speed-card #gpsSpeed{font-size:28px !important}
+  .lead-copy #leadState{font-size:14px !important}
+  .distance-line #distanceMain{font-size:34px !important}
+  .distance-line .unit{font-size:19px !important}
+  .gps-title{font-size:15px !important}
+  .gps-card #gpsCoords{font-size:13.5px !important}
+  .nav-distance{font-size:22px !important}
+  .nav-copy #navInstruction{font-size:16px !important}
+  .nav-next{font-size:13px !important}
+  .clock{font-size:23px !important}
+  .hud-version{font-size:12px !important}
+  .side-btn{font-size:13px !important}
+  .circle-btn{font-size:12.5px !important}
+}

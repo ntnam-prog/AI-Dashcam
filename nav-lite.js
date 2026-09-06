@@ -59,30 +59,76 @@
   startNavWatch();
   function ensurePos(){return new Promise((resolve,reject)=>{if(currentPos)return resolve(currentPos);if(!navigator.geolocation)return reject(new Error('Thiết bị không có GPS'));navigator.geolocation.getCurrentPosition(p=>{currentPos={lat:p.coords.latitude,lng:p.coords.longitude};resolve(currentPos);},e=>reject(new Error(gpsErrorMessage(e))),{enableHighAccuracy:true,timeout:12000,maximumAge:1000});});}
 
-  async function fetchJson(url,timeout=12000){
-    const ctl=new AbortController(),tid=setTimeout(()=>ctl.abort(),timeout);
-    try{const r=await fetch(url,{signal:ctl.signal,headers:{'Accept':'application/json'}});if(!r.ok)throw new Error(`HTTP ${r.status}`);return await r.json();}
-    finally{clearTimeout(tid);}
+  async function fetchJson(url,timeout=12000,label='dịch vụ'){
+    let lastErr=null;
+    for(let attempt=0;attempt<2;attempt++){
+      const ctl=new AbortController(),tid=setTimeout(()=>ctl.abort(),timeout);
+      try{
+        const r=await fetch(url,{signal:ctl.signal,cache:'no-store',headers:{'Accept':'application/json'}});
+        if(!r.ok)throw new Error(`${label}: HTTP ${r.status}`);
+        return await r.json();
+      }catch(e){
+        lastErr=e;
+        if(attempt===0)await new Promise(res=>setTimeout(res,350));
+      }finally{clearTimeout(tid);}
+    }
+    if(lastErr?.name==='AbortError')throw new Error(`${label} phản hồi quá lâu`);
+    throw new Error(`${label} tạm thời không kết nối được`);
   }
 
   async function geocodeDestination(text,origin){
-    const q=encodeURIComponent(`${text}, Việt Nam`);
-    // Photon is lightweight and keyless. Bias results toward current GPS when available.
-    const bias=origin?`&lat=${origin.lat}&lon=${origin.lng}`:'';
-    try{
-      const data=await fetchJson(`https://photon.komoot.io/api/?q=${q}&limit=5&lang=vi${bias}`);
-      const f=data?.features?.[0];
-      if(f?.geometry?.coordinates?.length>=2){
-        const [lng,lat]=f.geometry.coordinates;
-        const p=f.properties||{};
-        return {lat,lng,label:[p.name,p.street,p.city,p.state].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).join(', ')||text};
+    const raw=String(text||'').trim();
+    const queries=[raw,`${raw}, Việt Nam`];
+    // Photon first. Do not force the GPS bias on the first query because the
+    // destination may be in another province/city.
+    for(const query of queries){
+      const q=encodeURIComponent(query);
+      const urls=[
+        `https://photon.komoot.io/api/?q=${q}&limit=6&lang=vi`,
+        origin?`https://photon.komoot.io/api/?q=${q}&limit=6&lang=vi&lat=${origin.lat}&lon=${origin.lng}`:null
+      ].filter(Boolean);
+      for(const url of urls){
+        try{
+          const data=await fetchJson(url,10000,'Tìm địa điểm');
+          const fs=data?.features||[];
+          const f=fs.find(x=>x?.geometry?.coordinates?.length>=2);
+          if(f){
+            const [lng,lat]=f.geometry.coordinates;
+            const p=f.properties||{};
+            return {lat,lng,label:[p.name,p.street,p.city,p.county,p.state].filter(Boolean).filter((v,i,a)=>a.indexOf(v)===i).join(', ')||raw};
+          }
+        }catch{}
       }
-    }catch{}
-    // Fallback geocoder, also no API key.
-    const data=await fetchJson(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=5&countrycodes=vn&accept-language=vi&q=${q}`);
-    const f=data?.[0];
-    if(f)return {lat:Number(f.lat),lng:Number(f.lon),label:f.display_name||text};
-    throw new Error('Không tìm được điểm đến');
+    }
+    // Nominatim fallback. Keep this isolated so a transient CORS/network
+    // failure does not surface as Safari's unhelpful "Load failed" message.
+    for(const query of queries){
+      try{
+        const q=encodeURIComponent(query);
+        const data=await fetchJson(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&countrycodes=vn&accept-language=vi&q=${q}`,11000,'Tìm địa điểm dự phòng');
+        const f=data?.[0];
+        if(f)return {lat:Number(f.lat),lng:Number(f.lon),label:f.display_name||raw};
+      }catch{}
+    }
+    throw new Error('Không tìm được điểm đến • thử ghi rõ phường/quận hoặc tỉnh, thành phố');
+  }
+
+  async function fetchOsrmRoutes(origin,dest){
+    const coords=`${origin.lng},${origin.lat};${dest.lng},${dest.lat}`;
+    const qs='?alternatives=true&steps=true&overview=false&geometries=geojson';
+    const providers=[
+      ['OSRM',`https://router.project-osrm.org/route/v1/driving/${coords}${qs}`],
+      ['OSM Routing',`https://routing.openstreetmap.de/routed-car/route/v1/driving/${coords}${qs}`]
+    ];
+    let last='';
+    for(const [name,url] of providers){
+      try{
+        const data=await fetchJson(url,16000,name);
+        if(data?.code==='Ok'&&data?.routes?.length)return data.routes.slice(0,3);
+        last=data?.message||data?.code||'';
+      }catch(e){last=e?.message||String(e);}
+    }
+    throw new Error(last?`Không lấy được tuyến • ${last}`:'Không lấy được tuyến lúc này');
   }
 
   function viInstruction(step){
@@ -130,12 +176,9 @@
       setStatus('Đang tìm điểm đến…');
       destinationPoint=await geocodeDestination(q,origin);
       setStatus('Đang tính tuyến…');
-      const url=`https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${destinationPoint.lng},${destinationPoint.lat}?alternatives=true&steps=true&overview=false&geometries=geojson`;
-      const data=await fetchJson(url,15000);
-      if(data?.code!=='Ok'||!data?.routes?.length)throw new Error('Không tính được tuyến');
-      routeResult=data.routes.slice(0,3);selectedRoute=0;renderRouteChoices();
+      routeResult=await fetchOsrmRoutes(origin,destinationPoint);selectedRoute=0;renderRouteChoices();
       setStatus(`Có ${routeResult.length} tuyến • chọn tuyến rồi BẮT ĐẦU`);
-    }catch(e){setStatus(e?.message||'Không lấy được tuyến');}
+    }catch(e){const m=String(e?.message||'');setStatus((!m||m==='Load failed'||m.includes('Failed to fetch'))?'Nguồn tuyến tạm thời không phản hồi • bấm LẤY TUYẾN để thử lại':m);}
   }
   navHudBtn?.addEventListener('click',computeRoutes);
   destination?.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();destination.blur();computeRoutes();}});
