@@ -16,7 +16,7 @@
   setInterval(()=>{const d=new Date(),c=$('clock');if(c)c.textContent=d.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'});},1000);
 
   function setStatus(t){if(statusEl)statusEl.textContent=t;}
-  function showPanel(){panel?.classList.remove('hidden');panel?.setAttribute('aria-hidden','false');destination?.focus();}
+  function showPanel(){panel?.classList.remove('hidden');panel?.setAttribute('aria-hidden','false');document.activeElement?.blur?.();}
   function hidePanel(){panel?.classList.add('hidden');panel?.setAttribute('aria-hidden','true');}
   mapBtn?.addEventListener('click',showPanel); closeBtn?.addEventListener('click',hidePanel);
 
