@@ -152,3 +152,51 @@ body{touch-action:manipulation}
   .side-btn{font-size:13px !important}
   .circle-btn{font-size:12.5px !important}
 }
+
+/* R8 GEOMETRY FIX — keep R7 font sizes, enlarge the frames around them. */
+.hud-left{width:276px !important;gap:12px !important}
+.speed-card{height:112px !important;padding:13px 16px !important}
+.lead-card{height:110px !important;padding:13px 16px !important}
+.gps-card{height:78px !important;padding:12px 16px !important}
+.gps-card #gpsCoords{max-width:210px !important}
+.hud-right{gap:14px !important}
+.side-btn{width:106px !important;height:108px !important;border-radius:20px !important;padding:8px !important;line-height:1.12 !important}
+.side-icon{font-size:31px !important}
+
+/* Bottom controls: R7 fonts were enlarged; R8 grows the buttons to stop text/icon collision. */
+.bottom-controls{gap:16px !important;bottom:max(24px,env(safe-area-inset-bottom)) !important}
+.circle-btn{width:108px !important;height:92px !important;border-radius:20px !important;padding:0 10px 13px !important;line-height:1.15 !important}
+.circle-btn::before{top:10px !important;font-size:25px !important}
+.auto-btn{width:116px !important;height:96px !important}
+
+/* NAV frame grows with R7 text, but landscape position remains centered. */
+.nav-banner{height:76px !important;grid-template-columns:54px 104px 1fr !important;padding:8px 14px !important}
+
+/* Portrait: put NAV below the small left/right top HUD so it cannot overlap clock/GPS. */
+@media (orientation:portrait){
+  .nav-banner{
+    top:max(118px,calc(env(safe-area-inset-top) + 92px)) !important;
+    left:16px !important;
+    right:16px !important;
+    transform:none !important;
+    width:auto !important;
+    min-width:0 !important;
+    height:72px !important;
+    grid-template-columns:48px 92px minmax(0,1fr) !important;
+    padding:7px 11px !important;
+  }
+  .hud-top-right{z-index:4 !important}
+  .bottom-controls{bottom:max(28px,env(safe-area-inset-bottom)) !important}
+}
+
+@media(max-width:1000px){
+  .hud-left{width:236px !important;gap:10px !important}
+  .speed-card{height:92px !important}.lead-card{height:94px !important}.gps-card{height:68px !important}
+  .gps-card #gpsCoords{max-width:180px !important}
+  .side-btn{width:88px !important;height:90px !important;border-radius:17px !important}
+  .bottom-controls{gap:12px !important}
+  .circle-btn{width:88px !important;height:76px !important;border-radius:17px !important;padding-bottom:10px !important}
+  .circle-btn::before{top:8px !important;font-size:21px !important}
+  .auto-btn{width:96px !important;height:80px !important}
+  .nav-banner{height:66px !important;grid-template-columns:44px 86px 1fr !important}
+}

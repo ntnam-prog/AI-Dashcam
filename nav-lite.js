@@ -76,9 +76,33 @@
     throw new Error(`${label} tạm thời không kết nối được`);
   }
 
+  function jsonp(url,timeout=12000){
+    return new Promise((resolve,reject)=>{
+      const cb='__adasJsonp_'+Date.now()+'_'+Math.random().toString(36).slice(2);
+      const sep=url.includes('?')?'&':'?';
+      const script=document.createElement('script');
+      let done=false;
+      const finish=(err,data)=>{if(done)return;done=true;clearTimeout(tid);try{delete window[cb]}catch{};script.remove();err?reject(err):resolve(data)};
+      window[cb]=data=>finish(null,data);
+      script.onerror=()=>finish(new Error('JSONP không phản hồi'));
+      script.src=url+sep+'json_callback='+encodeURIComponent(cb);
+      document.head.appendChild(script);
+      const tid=setTimeout(()=>finish(new Error('JSONP phản hồi quá lâu')),timeout);
+    });
+  }
+
+  function queryVariants(text){
+    const raw=String(text||'').trim();
+    const clean=raw.replace(/^(ubnd|uỷ ban nhân dân|ủy ban nhân dân)\s+/i,'').trim();
+    const out=[raw,clean];
+    if(clean && !/\b(phường|xã|thị trấn|quận|huyện|thành phố|tp\.?)\b/i.test(clean)) out.push(`phường ${clean}`);
+    for(const q of [...out]) if(q && !/việt nam/i.test(q)) out.push(`${q}, Việt Nam`);
+    return [...new Set(out.filter(Boolean))];
+  }
+
   async function geocodeDestination(text,origin){
     const raw=String(text||'').trim();
-    const queries=[raw,`${raw}, Việt Nam`];
+    const queries=queryVariants(raw);
     // Photon first. Do not force the GPS bias on the first query because the
     // destination may be in another province/city.
     for(const query of queries){
@@ -100,12 +124,18 @@
         }catch{}
       }
     }
-    // Nominatim fallback. Keep this isolated so a transient CORS/network
-    // failure does not surface as Safari's unhelpful "Load failed" message.
+    // Nominatim fallback. First normal fetch, then JSONP so Safari can still
+    // geocode when a cross-origin fetch is blocked by WebKit/network policy.
     for(const query of queries){
+      const q=encodeURIComponent(query);
+      const base=`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&countrycodes=vn&accept-language=vi&addressdetails=1&q=${q}`;
       try{
-        const q=encodeURIComponent(query);
-        const data=await fetchJson(`https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&countrycodes=vn&accept-language=vi&q=${q}`,11000,'Tìm địa điểm dự phòng');
+        const data=await fetchJson(base,11000,'Tìm địa điểm dự phòng');
+        const f=data?.[0];
+        if(f)return {lat:Number(f.lat),lng:Number(f.lon),label:f.display_name||raw};
+      }catch{}
+      try{
+        const data=await jsonp(base,12000);
         const f=data?.[0];
         if(f)return {lat:Number(f.lat),lng:Number(f.lon),label:f.display_name||raw};
       }catch{}
@@ -123,11 +153,20 @@
     let last='';
     for(const [name,url] of providers){
       try{
-        const data=await fetchJson(url,16000,name);
+        const data=await fetchJson(url,15000,name);
         if(data?.code==='Ok'&&data?.routes?.length)return data.routes.slice(0,3);
         last=data?.message||data?.code||'';
       }catch(e){last=e?.message||String(e);}
     }
+    // Third provider: Valhalla public demo, requested in OSRM-compatible output.
+    // This preserves the rest of NAV-LITE's parser and keeps the ADAS core isolated.
+    try{
+      const req={locations:[{lat:origin.lat,lon:origin.lng},{lat:dest.lat,lon:dest.lng}],costing:'auto',directions_options:{units:'kilometers',language:'vi-VN'},format:'osrm'};
+      const url='https://valhalla1.openstreetmap.de/route?json='+encodeURIComponent(JSON.stringify(req));
+      const data=await fetchJson(url,18000,'Valhalla');
+      if(data?.code==='Ok'&&data?.routes?.length)return data.routes.slice(0,3);
+      last=data?.message||data?.code||last;
+    }catch(e){last=e?.message||String(e);}
     throw new Error(last?`Không lấy được tuyến • ${last}`:'Không lấy được tuyến lúc này');
   }
 
