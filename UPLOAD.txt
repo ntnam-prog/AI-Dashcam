@@ -1,14 +1,10 @@
-AI-Dashcam ver 1-hud R8 — HUD GEOMETRY + NAV PORTRAIT + ROUTE RELIABILITY
-Upload/overwrite these files at GitHub Pages root:
-- index.html
-- style-pro-hud.css
-- nav-lite.js
-- app-weblite5.js (UNCHANGED CORE)
-- manifest.webmanifest
+AI-Dashcam ver 1-hud R9 PORTRAIT AUTO-COMPACT
 
-R8 changes only HUD/NAV shell:
-1) HUD frames enlarged to fit R7 +4px fonts.
-2) Bottom Camera/Video/AUTO/Settings buttons enlarged to prevent icon/text overlap.
-3) Portrait NAV moved below top HUD to prevent overlap with GPS/clock.
-4) Route lookup: query normalization + Nominatim JSONP fallback + Valhalla routing fallback.
-ADAS core app-weblite5.js is unchanged.
+Upload/overwrite these files at repo root.
+Changes from R8:
+- Portrait only: HUD automatically scales down.
+- Landscape layout remains unchanged.
+- Left/right HUD groups compact to 78% in portrait.
+- Bottom controls compact to 84% in portrait.
+- NAV becomes shorter/tighter and stays below top HUD.
+- app-weblite5.js core ADAS unchanged.

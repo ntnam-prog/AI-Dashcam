@@ -200,3 +200,45 @@ body{touch-action:manipulation}
   .auto-btn{width:96px !important;height:80px !important}
   .nav-banner{height:66px !important;grid-template-columns:44px 86px 1fr !important}
 }
+
+/* R9: portrait auto-compact only. Landscape remains exactly as R8. */
+@media (orientation: portrait) {
+  /* Compact the peripheral HUD groups on narrow/tall screens. */
+  .hud-left{
+    transform:scale(.78) !important;
+    transform-origin:top left !important;
+  }
+  .hud-right{
+    transform:scale(.78) !important;
+    transform-origin:top right !important;
+  }
+  .hud-top-right{
+    transform:scale(.88) !important;
+    transform-origin:top right !important;
+  }
+
+  /* NAV becomes a shorter, tighter strip below the top HUD. */
+  .nav-banner{
+    top:max(126px,calc(env(safe-area-inset-top) + 100px)) !important;
+    left:18px !important;
+    right:18px !important;
+    width:auto !important;
+    min-width:0 !important;
+    height:60px !important;
+    grid-template-columns:42px 78px minmax(0,1fr) !important;
+    padding:5px 9px !important;
+    border-radius:16px !important;
+  }
+  .nav-arrow{font-size:30px !important}
+  .nav-distance{font-size:20px !important}
+  .nav-copy #navInstruction{font-size:15px !important;line-height:1.05 !important}
+  .nav-next{font-size:11px !important;line-height:1.05 !important}
+
+  /* Bottom controls compact as one group so they stay clear of Safari/PWA chrome. */
+  .bottom-controls{
+    transform:translateX(-50%) scale(.84) !important;
+    transform-origin:bottom center !important;
+    gap:10px !important;
+    bottom:max(20px,env(safe-area-inset-bottom)) !important;
+  }
+}
