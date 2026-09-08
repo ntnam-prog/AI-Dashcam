@@ -20,16 +20,6 @@
   mapBtn?.addEventListener('click',showPanel); closeBtn?.addEventListener('click',hidePanel);
 
   function hav(a,b){const R=6371000,p=Math.PI/180,dlat=(b.lat-a.lat)*p,dlon=(b.lng-a.lng)*p;const s=Math.sin(dlat/2)**2+Math.cos(a.lat*p)*Math.cos(b.lat*p)*Math.sin(dlon/2)**2;return 2*R*Math.asin(Math.sqrt(s));}
-  function bearing(a,b){const p=Math.PI/180,lat1=a.lat*p,lat2=b.lat*p,dl=(b.lng-a.lng)*p;const y=Math.sin(dl)*Math.cos(lat2),x=Math.cos(lat1)*Math.sin(lat2)-Math.sin(lat1)*Math.cos(lat2)*Math.cos(dl);return (Math.atan2(y,x)*180/Math.PI+360)%360;}
-  function angleDiff(a,b){if(!Number.isFinite(a)||!Number.isFinite(b))return 180;let d=Math.abs(a-b)%360;return d>180?360-d:d;}
-  function segmentMetrics(p,a,b){
-    const kx=111320*Math.cos(((a.lat+b.lat+p.lat)/3)*Math.PI/180),ky=110540;
-    const ax=a.lng*kx,ay=a.lat*ky,bx=b.lng*kx,by=b.lat*ky,px=p.lng*kx,py=p.lat*ky;
-    const vx=bx-ax,vy=by-ay,wx=px-ax,wy=py-ay,den=vx*vx+vy*vy||1;
-    const rawT=(wx*vx+wy*vy)/den,t=Math.max(0,Math.min(1,rawT));
-    const dx=px-(ax+t*vx),dy=py-(ay+t*vy);
-    return {distance:Math.hypot(dx,dy),rawT,bearing:bearing(a,b)};
-  }
   function maneuverIcon(m=''){m=String(m).toLowerCase();if(m.includes('left'))return '↰';if(m.includes('right'))return '↱';if(m.includes('uturn')||m.includes('u-turn'))return '↶';if(m.includes('merge'))return '↗';if(m.includes('roundabout')||m.includes('rotary'))return '↻';return '↑';}
   function fmtM(m){if(!Number.isFinite(m))return '-- m';return m>=1000?`${(m/1000).toFixed(m>=10000?0:1)} km`:`${Math.max(0,Math.round(m/10)*10)} m`;}
   function fmtDuration(sec){if(!Number.isFinite(sec))return '';const min=Math.max(1,Math.round(sec/60));if(min<60)return `${min} phút`;return `${Math.floor(min/60)} giờ ${min%60?`${min%60} phút`:''}`.trim();}
@@ -40,26 +30,9 @@
 
   function updateNav(p){
     if(!navRoute?.steps?.length||!p)return;
-    navStepIndex=Math.min(navStepIndex,navRoute.steps.length-1);
-    let step=navRoute.steps[navStepIndex],dist=hav(p,step.end);
-
-    // NAV-LITE progress matching: only current + next segment; no map engine/library.
-    // Advance when we are at the maneuver, have passed its segment end, or GPS+heading
-    // clearly match the next segment. This avoids keeping the old instruction after a turn.
-    if(navStepIndex<navRoute.steps.length-1){
-      const curM=segmentMetrics(p,step.start,step.end);
-      const next=navRoute.steps[navStepIndex+1];
-      const nextM=segmentMetrics(p,next.start,next.end);
-      const hdg=Number.isFinite(p.heading)?p.heading:null;
-      const headingMatchesNext=hdg===null?false:angleDiff(hdg,nextM.bearing)<=55;
-      const nearTurn=dist<=18;
-      const passedEnd=curM.rawT>=1.03;
-      const snappedToNext=dist<=55 && nextM.distance+7<curM.distance && (headingMatchesNext || nextM.distance<=12);
-      if(nearTurn||passedEnd||snappedToNext){
-        navStepIndex++;lastNavSpeakKey='';
-        step=navRoute.steps[navStepIndex];dist=hav(p,step.end);
-      }
-    }
+    let step=navRoute.steps[Math.min(navStepIndex,navRoute.steps.length-1)];
+    let dist=hav(p,step.end);
+    if(dist<24&&navStepIndex<navRoute.steps.length-1){navStepIndex++;lastNavSpeakKey='';step=navRoute.steps[navStepIndex];dist=hav(p,step.end);}
     navBanner?.classList.remove('hidden');
     if(navArrow)navArrow.textContent=maneuverIcon(step.maneuver);
     if(navDistance)navDistance.textContent=fmtM(dist);
@@ -78,13 +51,13 @@
   function startNavWatch(){
     if(navWatch!==null||!navigator.geolocation)return;
     navWatch=navigator.geolocation.watchPosition(pos=>{
-      currentPos={lat:pos.coords.latitude,lng:pos.coords.longitude,heading:Number.isFinite(pos.coords.heading)?pos.coords.heading:null,speed:Number.isFinite(pos.coords.speed)?pos.coords.speed:null,accuracy:pos.coords.accuracy};
+      currentPos={lat:pos.coords.latitude,lng:pos.coords.longitude};
       if(coords)coords.textContent=`${currentPos.lat.toFixed(5)}, ${currentPos.lng.toFixed(5)}`;
       updateNav(currentPos);
     },err=>{if(!currentPos&&coords)coords.textContent='Đang chờ vị trí'; if(err?.code===1)setStatus(gpsErrorMessage(err));},{enableHighAccuracy:true,maximumAge:1000,timeout:10000});
   }
   startNavWatch();
-  function ensurePos(){return new Promise((resolve,reject)=>{if(currentPos)return resolve(currentPos);if(!navigator.geolocation)return reject(new Error('Thiết bị không có GPS'));navigator.geolocation.getCurrentPosition(p=>{currentPos={lat:p.coords.latitude,lng:p.coords.longitude,heading:Number.isFinite(p.coords.heading)?p.coords.heading:null,speed:Number.isFinite(p.coords.speed)?p.coords.speed:null,accuracy:p.coords.accuracy};resolve(currentPos);},e=>reject(new Error(gpsErrorMessage(e))),{enableHighAccuracy:true,timeout:12000,maximumAge:1000});});}
+  function ensurePos(){return new Promise((resolve,reject)=>{if(currentPos)return resolve(currentPos);if(!navigator.geolocation)return reject(new Error('Thiết bị không có GPS'));navigator.geolocation.getCurrentPosition(p=>{currentPos={lat:p.coords.latitude,lng:p.coords.longitude};resolve(currentPos);},e=>reject(new Error(gpsErrorMessage(e))),{enableHighAccuracy:true,timeout:12000,maximumAge:1000});});}
 
   async function fetchJson(url,timeout=12000,label='dịch vụ'){
     let lastErr=null;
@@ -267,9 +240,8 @@
       const loc=s?.maneuver?.location||[];
       const next=raw[i+1]?.maneuver?.location||null;
       const endLoc=next||[destinationPoint.lng,destinationPoint.lat];
-      const target=raw[i+1]||s;
       return {
-        instructions:viInstruction(target),maneuver:maneuverCode(target),distanceMeters:s.distance||0,
+        instructions:viInstruction(s),maneuver:maneuverCode(s),distanceMeters:s.distance||0,
         start:{lat:Number(loc[1]),lng:Number(loc[0])},end:{lat:Number(endLoc[1]),lng:Number(endLoc[0])}
       };
     }).filter(s=>Number.isFinite(s.end.lat)&&Number.isFinite(s.end.lng));

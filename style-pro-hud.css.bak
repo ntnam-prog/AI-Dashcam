@@ -242,20 +242,3 @@ body{touch-action:manipulation}
     bottom:max(20px,env(safe-area-inset-bottom)) !important;
   }
 }
-
-/* R10: portrait NAV width only. Landscape remains unchanged. */
-@media (orientation: portrait) {
-  .nav-banner{
-    left:50% !important;
-    right:auto !important;
-    width:min(88vw, 430px) !important;
-    max-width:calc(100vw - 24px) !important;
-    min-width:0 !important;
-    transform:translateX(-50%) !important;
-    box-sizing:border-box !important;
-    grid-template-columns:38px 72px minmax(0,1fr) !important;
-    overflow:hidden !important;
-  }
-  .nav-copy{min-width:0 !important;overflow:hidden !important}
-  .nav-copy #navInstruction,.nav-next{white-space:nowrap !important;overflow:hidden !important;text-overflow:ellipsis !important}
-}
