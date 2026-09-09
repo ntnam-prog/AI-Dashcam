@@ -259,3 +259,11 @@ body{touch-action:manipulation}
   .nav-copy{min-width:0 !important;overflow:hidden !important}
   .nav-copy #navInstruction,.nav-next{white-space:nowrap !important;overflow:hidden !important;text-overflow:ellipsis !important}
 }
+
+/* R11: portrait only — move NAV below the top HUD stack.
+   Landscape is intentionally untouched. */
+@media (orientation: portrait) {
+  .nav-banner{
+    top:max(270px,calc(env(safe-area-inset-top) + 244px)) !important;
+  }
+}
